@@ -1,0 +1,1250 @@
+# ====================================================================
+# BỘ KIỂM THỬ API - GIAI ĐOẠN 7: LIVENESS DETECTION & ANTI-SPOOFING
+# ====================================================================
+
+@baseUrl = http://localhost:3000/api
+@baseUrlV1 = http://localhost:3000/api/v1
+@workDate = 2026-06-30
+
+# ====================================================================
+# 0. LOGINS TO ACQUIRE TOKENS & FINGERPRINTS
+# ====================================================================
+
+# @name adminLogin
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+X-Device-Fingerprint: fingerprint_admin_01
+
+{
+  "username": "admin",
+  "password": "Admin@123"
+}
+
+###
+@adminToken = {{adminLogin.response.body.data.accessToken}}
+@adminFingerprint = {{adminLogin.response.body.data.deviceFingerprint}}
+
+# @name employee01Login
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+X-Device-Fingerprint: fingerprint_emp_01
+
+{
+  "username": "employee01",
+  "password": "Employee@123"
+}
+
+###
+@emp01Token = {{employee01Login.response.body.data.accessToken}}
+@emp01Fingerprint = {{employee01Login.response.body.data.deviceFingerprint}}
+@emp01Id = 2
+
+# @name employee02Login
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+X-Device-Fingerprint: fingerprint_emp_02
+
+{
+  "username": "employee02",
+  "password": "Employee@123"
+}
+
+###
+@emp02Token = {{employee02Login.response.body.data.accessToken}}
+@emp02Fingerprint = {{employee02Login.response.body.data.deviceFingerprint}}
+@emp02Id = 4
+
+# ====================================================================
+# 1. SETUP TESTING DATA
+# ====================================================================
+
+### 1.1 Create Location (ADMIN)
+# @name createLoc
+POST {{baseUrl}}/admin/work-locations
+Authorization: Bearer {{adminToken}}
+X-Device-Fingerprint: {{adminFingerprint}}
+Content-Type: application/json
+
+{
+  "locationName": "Văn phòng Giai Đoạn 7",
+  "address": "123 Liveness St, District 1, HCMC",
+  "latitude": 10.776889,
+  "longitude": 106.700806,
+  "allowedRadiusMeter": 100
+}
+
+###
+@locId = {{createLoc.response.body.data.locationId}}
+
+### 1.2 Assign Employee 01 Work (ADMIN)
+# @name createAssign1
+POST {{baseUrl}}/admin/assignments
+Authorization: Bearer {{adminToken}}
+X-Device-Fingerprint: {{adminFingerprint}}
+Content-Type: application/json
+
+{
+  "employeeId": {{emp01Id}},
+  "locationId": {{locId}},
+  "workDate": "{{workDate}}"
+}
+
+###
+@assign1Id = {{createAssign1.response.body.data.assignmentId}}
+
+### 1.3 Assign Employee 02 Work (ADMIN)
+# @name createAssign2
+POST {{baseUrl}}/admin/assignments
+Authorization: Bearer {{adminToken}}
+X-Device-Fingerprint: {{adminFingerprint}}
+Content-Type: application/json
+
+{
+  "employeeId": {{emp02Id}},
+  "locationId": {{locId}},
+  "workDate": "{{workDate}}"
+}
+
+###
+@assign2Id = {{createAssign2.response.body.data.assignmentId}}
+
+# ====================================================================
+# 2. STATUS & HEALTH ENDPOINTS (TEST 1-2)
+# ====================================================================
+
+### Test 1: Get Liveness status (Authenticated - Employee 01)
+GET {{baseUrlV1}}/liveness/status
+Authorization: Bearer {{emp01Token}}
+X-Device-Fingerprint: {{emp01Fingerprint}}
+
+### Test 2: Get Liveness status without token (Expect: 401 Unauthorized)
+GET {{baseUrlV1}}/liveness/status
+
+# ====================================================================
+# 3. STANDALONE VERIFICATION ROUTE TESTS (TEST 3-22)
+# ====================================================================
+
+### Test 3: Standalone verify - Missing file (Expect: 400 FILE_REQUIRED)
+POST {{baseUrlV1}}/liveness/verify
+Authorization: Bearer {{emp01Token}}
+X-Device-Fingerprint: {{emp01Fingerprint}}
+Content-Type: multipart/form-data; boundary=TestBoundary
+
+--TestBoundary
+Content-Disposition: form-data; name="employeeId"
+
+{{emp01Id}}
+--TestBoundary--
+
+### Test 4: Standalone verify - Missing employeeId (Expect: 400 EMPLOYEE_ID_REQUIRED)
+POST {{baseUrlV1}}/liveness/verify
+Authorization: Bearer {{emp01Token}}
+X-Device-Fingerprint: {{emp01Fingerprint}}
+Content-Type: multipart/form-data; boundary=TestBoundary
+
+--TestBoundary
+Content-Disposition: form-data; name="photo"; filename="liveness_success.mp4"
+Content-Type: video/mp4
+
+< ./scratch/checkin.jpg
+--TestBoundary--
+
+### Test 5: Standalone verify - Inactive employee (Expect: 400 EMPLOYEE_INACTIVE)
+POST {{baseUrlV1}}/liveness/verify
+Authorization: Bearer {{emp01Token}}
+X-Device-Fingerprint: {{emp01Fingerprint}}
+Content-Type: multipart/form-data; boundary=TestBoundary
+
+--TestBoundary
+Content-Disposition: form-data; name="employeeId"
+
+3
+--TestBoundary
+Content-Disposition: form-data; name="photo"; filename="liveness_success.mp4"
+Content-Type: video/mp4
+
+< ./scratch/checkin.jpg
+--TestBoundary--
+
+### Test 6: Standalone verify - Non-existent employee (Expect: 404 EMPLOYEE_NOT_FOUND)
+POST {{baseUrlV1}}/liveness/verify
+Authorization: Bearer {{emp01Token}}
+X-Device-Fingerprint: {{emp01Fingerprint}}
+Content-Type: multipart/form-data; boundary=TestBoundary
+
+--TestBoundary
+Content-Disposition: form-data; name="employeeId"
+
+9999
+--TestBoundary
+Content-Disposition: form-data; name="photo"; filename="liveness_success.mp4"
+Content-Type: video/mp4
+
+< ./scratch/checkin.jpg
+--TestBoundary--
+
+### Test 7: Standalone verify - Invalid file format (Expect: 400 INVALID_FILE_TYPE)
+POST {{baseUrlV1}}/liveness/verify
+Authorization: Bearer {{emp01Token}}
+X-Device-Fingerprint: {{emp01Fingerprint}}
+Content-Type: multipart/form-data; boundary=TestBoundary
+
+--TestBoundary
+Content-Disposition: form-data; name="employeeId"
+
+{{emp01Id}}
+--TestBoundary
+Content-Disposition: form-data; name="photo"; filename="liveness.txt"
+Content-Type: text/plain
+
+This is a test file
+--TestBoundary--
+
+### Test 8: Standalone verify - Liveness PASS (Expect: 200 success: true, passed: true)
+POST {{baseUrlV1}}/liveness/verify
+Authorization: Bearer {{emp01Token}}
+X-Device-Fingerprint: {{emp01Fingerprint}}
+Content-Type: multipart/form-data; boundary=TestBoundary
+
+--TestBoundary
+Content-Disposition: form-data; name="employeeId"
+
+{{emp01Id}}
+--TestBoundary
+Content-Disposition: form-data; name="photo"; filename="liveness_success.mp4"
+Content-Type: video/mp4
+
+< ./scratch/checkin.jpg
+--TestBoundary--
+
+### Test 9: Standalone verify - Eye Blink FAIL (Expect: 200 passed: false, reason: EYE_BLINK_NOT_DETECTED)
+POST {{baseUrlV1}}/liveness/verify
+Authorization: Bearer {{emp01Token}}
+X-Device-Fingerprint: {{emp01Fingerprint}}
+Content-Type: multipart/form-data; boundary=TestBoundary
+
+--TestBoundary
+Content-Disposition: form-data; name="employeeId"
+
+{{emp01Id}}
+--TestBoundary
+Content-Disposition: form-data; name="photo"; filename="eye_blink_fail.mp4"
+Content-Type: video/mp4
+
+< ./scratch/checkin.jpg
+--TestBoundary--
+
+### Test 10: Standalone verify - Head Pose FAIL (Expect: 200 passed: false, reason: HEAD_POSE_INVALID)
+POST {{baseUrlV1}}/liveness/verify
+Authorization: Bearer {{emp01Token}}
+X-Device-Fingerprint: {{emp01Fingerprint}}
+Content-Type: multipart/form-data; boundary=TestBoundary
+
+--TestBoundary
+Content-Disposition: form-data; name="employeeId"
+
+{{emp01Id}}
+--TestBoundary
+Content-Disposition: form-data; name="photo"; filename="head_pose_fail.mp4"
+Content-Type: video/mp4
+
+< ./scratch/checkin.jpg
+--TestBoundary--
+
+### Test 11: Standalone verify - Face Orientation FAIL (Expect: 200 passed: false, reason: FACE_ORIENTATION_INVALID)
+POST {{baseUrlV1}}/liveness/verify
+Authorization: Bearer {{emp01Token}}
+X-Device-Fingerprint: {{emp01Fingerprint}}
+Content-Type: multipart/form-data; boundary=TestBoundary
+
+--TestBoundary
+Content-Disposition: form-data; name="employeeId"
+
+{{emp01Id}}
+--TestBoundary
+Content-Disposition: form-data; name="photo"; filename="face_orientation_fail.mp4"
+Content-Type: video/mp4
+
+< ./scratch/checkin.jpg
+--TestBoundary--
+
+### Test 12: Standalone verify - Face Quality FAIL (Expect: 200 passed: false, reason: LOW_FACE_QUALITY)
+POST {{baseUrlV1}}/liveness/verify
+Authorization: Bearer {{emp01Token}}
+X-Device-Fingerprint: {{emp01Fingerprint}}
+Content-Type: multipart/form-data; boundary=TestBoundary
+
+--TestBoundary
+Content-Disposition: form-data; name="employeeId"
+
+{{emp01Id}}
+--TestBoundary
+Content-Disposition: form-data; name="photo"; filename="low_face_quality.mp4"
+Content-Type: video/mp4
+
+< ./scratch/checkin.jpg
+--TestBoundary--
+
+### Test 13: Standalone verify - Face Too Small FAIL (Expect: 200 passed: false, reason: FACE_TOO_SMALL)
+POST {{baseUrlV1}}/liveness/verify
+Authorization: Bearer {{emp01Token}}
+X-Device-Fingerprint: {{emp01Fingerprint}}
+Content-Type: multipart/form-data; boundary=TestBoundary
+
+--TestBoundary
+Content-Disposition: form-data; name="employeeId"
+
+{{emp01Id}}
+--TestBoundary
+Content-Disposition: form-data; name="photo"; filename="face_too_small.mp4"
+Content-Type: video/mp4
+
+< ./scratch/checkin.jpg
+--TestBoundary--
+
+### Test 14: Standalone verify - No Face FAIL (Expect: 200 passed: false, reason: NO_FACE_DETECTED)
+POST {{baseUrlV1}}/liveness/verify
+Authorization: Bearer {{emp01Token}}
+X-Device-Fingerprint: {{emp01Fingerprint}}
+Content-Type: multipart/form-data; boundary=TestBoundary
+
+--TestBoundary
+Content-Disposition: form-data; name="employeeId"
+
+{{emp01Id}}
+--TestBoundary
+Content-Disposition: form-data; name="photo"; filename="no_face.mp4"
+Content-Type: video/mp4
+
+< ./scratch/checkin.jpg
+--TestBoundary--
+
+### Test 15: Standalone verify - Multiple Faces FAIL (Expect: 200 passed: false, reason: MULTIPLE_FACES_DETECTED)
+POST {{baseUrlV1}}/liveness/verify
+Authorization: Bearer {{emp01Token}}
+X-Device-Fingerprint: {{emp01Fingerprint}}
+Content-Type: multipart/form-data; boundary=TestBoundary
+
+--TestBoundary
+Content-Disposition: form-data; name="employeeId"
+
+{{emp01Id}}
+--TestBoundary
+Content-Disposition: form-data; name="photo"; filename="multiple_faces.mp4"
+Content-Type: video/mp4
+
+< ./scratch/checkin.jpg
+--TestBoundary--
+
+### Test 16: Standalone verify - Occlusion Detected FAIL (Expect: 200 passed: false, reason: OCCLUSION_DETECTED)
+POST {{baseUrlV1}}/liveness/verify
+Authorization: Bearer {{emp01Token}}
+X-Device-Fingerprint: {{emp01Fingerprint}}
+Content-Type: multipart/form-data; boundary=TestBoundary
+
+--TestBoundary
+Content-Disposition: form-data; name="employeeId"
+
+{{emp01Id}}
+--TestBoundary
+Content-Disposition: form-data; name="photo"; filename="occlusion_detected.mp4"
+Content-Type: video/mp4
+
+< ./scratch/checkin.jpg
+--TestBoundary--
+
+### Test 17: Standalone verify - Spoof Detected FAIL (Expect: 200 passed: false, reason: SPOOF_DETECTED)
+POST {{baseUrlV1}}/liveness/verify
+Authorization: Bearer {{emp01Token}}
+X-Device-Fingerprint: {{emp01Fingerprint}}
+Content-Type: multipart/form-data; boundary=TestBoundary
+
+--TestBoundary
+Content-Disposition: form-data; name="employeeId"
+
+{{emp01Id}}
+--TestBoundary
+Content-Disposition: form-data; name="photo"; filename="spoof_detected.mp4"
+Content-Type: video/mp4
+
+< ./scratch/checkin.jpg
+--TestBoundary--
+
+### Test 18: Standalone verify - Liveness Failed FAIL (Expect: 200 passed: false, reason: LIVENESS_FAILED)
+POST {{baseUrlV1}}/liveness/verify
+Authorization: Bearer {{emp01Token}}
+X-Device-Fingerprint: {{emp01Fingerprint}}
+Content-Type: multipart/form-data; boundary=TestBoundary
+
+--TestBoundary
+Content-Disposition: form-data; name="employeeId"
+
+{{emp01Id}}
+--TestBoundary
+Content-Disposition: form-data; name="photo"; filename="liveness_fail.mp4"
+Content-Type: video/mp4
+
+< ./scratch/checkin.jpg
+--TestBoundary--
+
+### Test 19: Standalone verify - MediaPipe framework error mock (Expect: 500 MEDIAPIPE_ERROR)
+POST {{baseUrlV1}}/liveness/verify
+Authorization: Bearer {{emp01Token}}
+X-Device-Fingerprint: {{emp01Fingerprint}}
+Content-Type: multipart/form-data; boundary=TestBoundary
+
+--TestBoundary
+Content-Disposition: form-data; name="employeeId"
+
+{{emp01Id}}
+--TestBoundary
+Content-Disposition: form-data; name="photo"; filename="mediapipe_error.mp4"
+Content-Type: video/mp4
+
+< ./scratch/checkin.jpg
+--TestBoundary--
+
+### Test 20: Standalone verify - Unexpected AI Error mock (Expect: 500 INTERNAL_SERVER_ERROR)
+POST {{baseUrlV1}}/liveness/verify
+Authorization: Bearer {{emp01Token}}
+X-Device-Fingerprint: {{emp01Fingerprint}}
+Content-Type: multipart/form-data; boundary=TestBoundary
+
+--TestBoundary
+Content-Disposition: form-data; name="employeeId"
+
+{{emp01Id}}
+--TestBoundary
+Content-Disposition: form-data; name="photo"; filename="unexpected_error.mp4"
+Content-Type: video/mp4
+
+< ./scratch/checkin.jpg
+--TestBoundary--
+
+# ====================================================================
+# 4. INTEGRATED CHECK-IN LIVENESS TESTS (TEST 21-30)
+# ====================================================================
+
+### Test 21: Check-in Employee 01 - Success (Expect: 200, attendance IN_PROGRESS)
+POST {{baseUrl}}/attendance/check-in
+Authorization: Bearer {{emp01Token}}
+X-Device-Fingerprint: {{emp01Fingerprint}}
+Content-Type: multipart/form-data; boundary=TestBoundary
+
+--TestBoundary
+Content-Disposition: form-data; name="assignmentId"
+
+{{assign1Id}}
+--TestBoundary
+Content-Disposition: form-data; name="latitude"
+
+10.776889
+--TestBoundary
+Content-Disposition: form-data; name="longitude"
+
+106.700806
+--TestBoundary
+Content-Disposition: form-data; name="gpsAccuracy"
+
+15.0
+--TestBoundary
+Content-Disposition: form-data; name="capturedAtClient"
+
+2026-06-30T08:00:00+07:00
+--TestBoundary
+Content-Disposition: form-data; name="clientRequestId"
+
+phase7-req-001
+--TestBoundary
+Content-Disposition: form-data; name="isPwaStandalone"
+
+1
+--TestBoundary
+Content-Disposition: form-data; name="photo"; filename="liveness_success.mp4"
+Content-Type: video/mp4
+
+< ./scratch/checkin.jpg
+--TestBoundary--
+
+### Test 22: Check-in - Duplicate Check-in (Expect: 400 ATTENDANCE_ALREADY_CHECKED_IN)
+POST {{baseUrl}}/attendance/check-in
+Authorization: Bearer {{emp01Token}}
+X-Device-Fingerprint: {{emp01Fingerprint}}
+Content-Type: multipart/form-data; boundary=TestBoundary
+
+--TestBoundary
+Content-Disposition: form-data; name="assignmentId"
+
+{{assign1Id}}
+--TestBoundary
+Content-Disposition: form-data; name="latitude"
+
+10.776889
+--TestBoundary
+Content-Disposition: form-data; name="longitude"
+
+106.700806
+--TestBoundary
+Content-Disposition: form-data; name="gpsAccuracy"
+
+15.0
+--TestBoundary
+Content-Disposition: form-data; name="capturedAtClient"
+
+2026-06-30T08:05:00+07:00
+--TestBoundary
+Content-Disposition: form-data; name="clientRequestId"
+
+phase7-req-002
+--TestBoundary
+Content-Disposition: form-data; name="isPwaStandalone"
+
+1
+--TestBoundary
+Content-Disposition: form-data; name="photo"; filename="liveness_success.mp4"
+Content-Type: video/mp4
+
+< ./scratch/checkin.jpg
+--TestBoundary--
+
+### Test 23: Check-in Employee 02 - Eye Blink FAIL (Expect: 422 EYE_BLINK_NOT_DETECTED, transaction rolled back)
+POST {{baseUrl}}/attendance/check-in
+Authorization: Bearer {{emp02Token}}
+X-Device-Fingerprint: {{emp02Fingerprint}}
+Content-Type: multipart/form-data; boundary=TestBoundary
+
+--TestBoundary
+Content-Disposition: form-data; name="assignmentId"
+
+{{assign2Id}}
+--TestBoundary
+Content-Disposition: form-data; name="latitude"
+
+10.776889
+--TestBoundary
+Content-Disposition: form-data; name="longitude"
+
+106.700806
+--TestBoundary
+Content-Disposition: form-data; name="gpsAccuracy"
+
+15.0
+--TestBoundary
+Content-Disposition: form-data; name="capturedAtClient"
+
+2026-06-30T08:00:00+07:00
+--TestBoundary
+Content-Disposition: form-data; name="clientRequestId"
+
+phase7-req-003
+--TestBoundary
+Content-Disposition: form-data; name="isPwaStandalone"
+
+1
+--TestBoundary
+Content-Disposition: form-data; name="photo"; filename="eye_blink_fail.mp4"
+Content-Type: video/mp4
+
+< ./scratch/checkin.jpg
+--TestBoundary--
+
+### Test 24: Check-in Employee 02 - Head Pose FAIL (Expect: 422 HEAD_POSE_INVALID)
+POST {{baseUrl}}/attendance/check-in
+Authorization: Bearer {{emp02Token}}
+X-Device-Fingerprint: {{emp02Fingerprint}}
+Content-Type: multipart/form-data; boundary=TestBoundary
+
+--TestBoundary
+Content-Disposition: form-data; name="assignmentId"
+
+{{assign2Id}}
+--TestBoundary
+Content-Disposition: form-data; name="latitude"
+
+10.776889
+--TestBoundary
+Content-Disposition: form-data; name="longitude"
+
+106.700806
+--TestBoundary
+Content-Disposition: form-data; name="gpsAccuracy"
+
+15.0
+--TestBoundary
+Content-Disposition: form-data; name="capturedAtClient"
+
+2026-06-30T08:01:00+07:00
+--TestBoundary
+Content-Disposition: form-data; name="clientRequestId"
+
+phase7-req-004
+--TestBoundary
+Content-Disposition: form-data; name="isPwaStandalone"
+
+1
+--TestBoundary
+Content-Disposition: form-data; name="photo"; filename="head_pose_fail.mp4"
+Content-Type: video/mp4
+
+< ./scratch/checkin.jpg
+--TestBoundary--
+
+### Test 25: Check-in Employee 02 - Face Orientation FAIL (Expect: 422 FACE_ORIENTATION_INVALID)
+POST {{baseUrl}}/attendance/check-in
+Authorization: Bearer {{emp02Token}}
+X-Device-Fingerprint: {{emp02Fingerprint}}
+Content-Type: multipart/form-data; boundary=TestBoundary
+
+--TestBoundary
+Content-Disposition: form-data; name="assignmentId"
+
+{{assign2Id}}
+--TestBoundary
+Content-Disposition: form-data; name="latitude"
+
+10.776889
+--TestBoundary
+Content-Disposition: form-data; name="longitude"
+
+106.700806
+--TestBoundary
+Content-Disposition: form-data; name="gpsAccuracy"
+
+15.0
+--TestBoundary
+Content-Disposition: form-data; name="capturedAtClient"
+
+2026-06-30T08:02:00+07:00
+--TestBoundary
+Content-Disposition: form-data; name="clientRequestId"
+
+phase7-req-005
+--TestBoundary
+Content-Disposition: form-data; name="isPwaStandalone"
+
+1
+--TestBoundary
+Content-Disposition: form-data; name="photo"; filename="face_orientation_fail.mp4"
+Content-Type: video/mp4
+
+< ./scratch/checkin.jpg
+--TestBoundary--
+
+### Test 26: Check-in Employee 02 - Occlusion Detected FAIL (Expect: 422 OCCLUSION_DETECTED)
+POST {{baseUrl}}/attendance/check-in
+Authorization: Bearer {{emp02Token}}
+X-Device-Fingerprint: {{emp02Fingerprint}}
+Content-Type: multipart/form-data; boundary=TestBoundary
+
+--TestBoundary
+Content-Disposition: form-data; name="assignmentId"
+
+{{assign2Id}}
+--TestBoundary
+Content-Disposition: form-data; name="latitude"
+
+10.776889
+--TestBoundary
+Content-Disposition: form-data; name="longitude"
+
+106.700806
+--TestBoundary
+Content-Disposition: form-data; name="gpsAccuracy"
+
+15.0
+--TestBoundary
+Content-Disposition: form-data; name="capturedAtClient"
+
+2026-06-30T08:03:00+07:00
+--TestBoundary
+Content-Disposition: form-data; name="clientRequestId"
+
+phase7-req-006
+--TestBoundary
+Content-Disposition: form-data; name="isPwaStandalone"
+
+1
+--TestBoundary
+Content-Disposition: form-data; name="photo"; filename="occlusion_detected.mp4"
+Content-Type: video/mp4
+
+< ./scratch/checkin.jpg
+--TestBoundary--
+
+### Test 27: Check-in Employee 02 - Spoof Detected FAIL (Expect: 422 SPOOF_DETECTED)
+POST {{baseUrl}}/attendance/check-in
+Authorization: Bearer {{emp02Token}}
+X-Device-Fingerprint: {{emp02Fingerprint}}
+Content-Type: multipart/form-data; boundary=TestBoundary
+
+--TestBoundary
+Content-Disposition: form-data; name="assignmentId"
+
+{{assign2Id}}
+--TestBoundary
+Content-Disposition: form-data; name="latitude"
+
+10.776889
+--TestBoundary
+Content-Disposition: form-data; name="longitude"
+
+106.700806
+--TestBoundary
+Content-Disposition: form-data; name="gpsAccuracy"
+
+15.0
+--TestBoundary
+Content-Disposition: form-data; name="capturedAtClient"
+
+2026-06-30T08:04:00+07:00
+--TestBoundary
+Content-Disposition: form-data; name="clientRequestId"
+
+phase7-req-007
+--TestBoundary
+Content-Disposition: form-data; name="isPwaStandalone"
+
+1
+--TestBoundary
+Content-Disposition: form-data; name="photo"; filename="spoof_detected.mp4"
+Content-Type: video/mp4
+
+< ./scratch/checkin.jpg
+--TestBoundary--
+
+### Test 28: Check-in Employee 02 - No Face FAIL (Expect: 400 NO_FACE_DETECTED)
+POST {{baseUrl}}/attendance/check-in
+Authorization: Bearer {{emp02Token}}
+X-Device-Fingerprint: {{emp02Fingerprint}}
+Content-Type: multipart/form-data; boundary=TestBoundary
+
+--TestBoundary
+Content-Disposition: form-data; name="assignmentId"
+
+{{assign2Id}}
+--TestBoundary
+Content-Disposition: form-data; name="latitude"
+
+10.776889
+--TestBoundary
+Content-Disposition: form-data; name="longitude"
+
+106.700806
+--TestBoundary
+Content-Disposition: form-data; name="gpsAccuracy"
+
+15.0
+--TestBoundary
+Content-Disposition: form-data; name="capturedAtClient"
+
+2026-06-30T08:05:00+07:00
+--TestBoundary
+Content-Disposition: form-data; name="clientRequestId"
+
+phase7-req-008
+--TestBoundary
+Content-Disposition: form-data; name="isPwaStandalone"
+
+1
+--TestBoundary
+Content-Disposition: form-data; name="photo"; filename="no_face.mp4"
+Content-Type: video/mp4
+
+< ./scratch/checkin.jpg
+--TestBoundary--
+
+### Test 29: Check-in Employee 02 - Multiple Faces FAIL (Expect: 400 MULTIPLE_FACES_DETECTED)
+POST {{baseUrl}}/attendance/check-in
+Authorization: Bearer {{emp02Token}}
+X-Device-Fingerprint: {{emp02Fingerprint}}
+Content-Type: multipart/form-data; boundary=TestBoundary
+
+--TestBoundary
+Content-Disposition: form-data; name="assignmentId"
+
+{{assign2Id}}
+--TestBoundary
+Content-Disposition: form-data; name="latitude"
+
+10.776889
+--TestBoundary
+Content-Disposition: form-data; name="longitude"
+
+106.700806
+--TestBoundary
+Content-Disposition: form-data; name="gpsAccuracy"
+
+15.0
+--TestBoundary
+Content-Disposition: form-data; name="capturedAtClient"
+
+2026-06-30T08:06:00+07:00
+--TestBoundary
+Content-Disposition: form-data; name="clientRequestId"
+
+phase7-req-009
+--TestBoundary
+Content-Disposition: form-data; name="isPwaStandalone"
+
+1
+--TestBoundary
+Content-Disposition: form-data; name="photo"; filename="multiple_faces.mp4"
+Content-Type: video/mp4
+
+< ./scratch/checkin.jpg
+--TestBoundary--
+
+### Test 30: Check-in Employee 02 - Success after previously failed attempts (Expect: 200, attendance IN_PROGRESS)
+POST {{baseUrl}}/attendance/check-in
+Authorization: Bearer {{emp02Token}}
+X-Device-Fingerprint: {{emp02Fingerprint}}
+Content-Type: multipart/form-data; boundary=TestBoundary
+
+--TestBoundary
+Content-Disposition: form-data; name="assignmentId"
+
+{{assign2Id}}
+--TestBoundary
+Content-Disposition: form-data; name="latitude"
+
+10.776889
+--TestBoundary
+Content-Disposition: form-data; name="longitude"
+
+106.700806
+--TestBoundary
+Content-Disposition: form-data; name="gpsAccuracy"
+
+15.0
+--TestBoundary
+Content-Disposition: form-data; name="capturedAtClient"
+
+2026-06-30T08:10:00+07:00
+--TestBoundary
+Content-Disposition: form-data; name="clientRequestId"
+
+phase7-req-010
+--TestBoundary
+Content-Disposition: form-data; name="isPwaStandalone"
+
+1
+--TestBoundary
+Content-Disposition: form-data; name="photo"; filename="liveness_success.mp4"
+Content-Type: video/mp4
+
+< ./scratch/checkin.jpg
+--TestBoundary--
+
+# ====================================================================
+# 5. INTEGRATED CHECK-OUT LIVENESS TESTS (TEST 31-40)
+# ====================================================================
+
+### Test 31: Check-out Employee 01 - Eye Blink FAIL (Expect: 422 EYE_BLINK_NOT_DETECTED, transaction rolled back)
+POST {{baseUrl}}/attendance/check-out
+Authorization: Bearer {{emp01Token}}
+X-Device-Fingerprint: {{emp01Fingerprint}}
+Content-Type: multipart/form-data; boundary=TestBoundary
+
+--TestBoundary
+Content-Disposition: form-data; name="assignmentId"
+
+{{assign1Id}}
+--TestBoundary
+Content-Disposition: form-data; name="latitude"
+
+10.776889
+--TestBoundary
+Content-Disposition: form-data; name="longitude"
+
+106.700806
+--TestBoundary
+Content-Disposition: form-data; name="gpsAccuracy"
+
+15.0
+--TestBoundary
+Content-Disposition: form-data; name="capturedAtClient"
+
+2026-06-30T17:00:00+07:00
+--TestBoundary
+Content-Disposition: form-data; name="clientRequestId"
+
+phase7-req-011
+--TestBoundary
+Content-Disposition: form-data; name="isPwaStandalone"
+
+1
+--TestBoundary
+Content-Disposition: form-data; name="photo"; filename="eye_blink_fail.mp4"
+Content-Type: video/mp4
+
+< ./scratch/checkin.jpg
+--TestBoundary--
+
+### Test 32: Check-out Employee 01 - Head Pose FAIL (Expect: 422 HEAD_POSE_INVALID)
+POST {{baseUrl}}/attendance/check-out
+Authorization: Bearer {{emp01Token}}
+X-Device-Fingerprint: {{emp01Fingerprint}}
+Content-Type: multipart/form-data; boundary=TestBoundary
+
+--TestBoundary
+Content-Disposition: form-data; name="assignmentId"
+
+{{assign1Id}}
+--TestBoundary
+Content-Disposition: form-data; name="latitude"
+
+10.776889
+--TestBoundary
+Content-Disposition: form-data; name="longitude"
+
+106.700806
+--TestBoundary
+Content-Disposition: form-data; name="gpsAccuracy"
+
+15.0
+--TestBoundary
+Content-Disposition: form-data; name="capturedAtClient"
+
+2026-06-30T17:01:00+07:00
+--TestBoundary
+Content-Disposition: form-data; name="clientRequestId"
+
+phase7-req-012
+--TestBoundary
+Content-Disposition: form-data; name="isPwaStandalone"
+
+1
+--TestBoundary
+Content-Disposition: form-data; name="photo"; filename="head_pose_fail.mp4"
+Content-Type: video/mp4
+
+< ./scratch/checkin.jpg
+--TestBoundary--
+
+### Test 33: Check-out Employee 01 - Face Orientation FAIL (Expect: 422 FACE_ORIENTATION_INVALID)
+POST {{baseUrl}}/attendance/check-out
+Authorization: Bearer {{emp01Token}}
+X-Device-Fingerprint: {{emp01Fingerprint}}
+Content-Type: multipart/form-data; boundary=TestBoundary
+
+--TestBoundary
+Content-Disposition: form-data; name="assignmentId"
+
+{{assign1Id}}
+--TestBoundary
+Content-Disposition: form-data; name="latitude"
+
+10.776889
+--TestBoundary
+Content-Disposition: form-data; name="longitude"
+
+106.700806
+--TestBoundary
+Content-Disposition: form-data; name="gpsAccuracy"
+
+15.0
+--TestBoundary
+Content-Disposition: form-data; name="capturedAtClient"
+
+2026-06-30T17:02:00+07:00
+--TestBoundary
+Content-Disposition: form-data; name="clientRequestId"
+
+phase7-req-013
+--TestBoundary
+Content-Disposition: form-data; name="isPwaStandalone"
+
+1
+--TestBoundary
+Content-Disposition: form-data; name="photo"; filename="face_orientation_fail.mp4"
+Content-Type: video/mp4
+
+< ./scratch/checkin.jpg
+--TestBoundary--
+
+### Test 34: Check-out Employee 01 - Occlusion Detected FAIL (Expect: 422 OCCLUSION_DETECTED)
+POST {{baseUrl}}/attendance/check-out
+Authorization: Bearer {{emp01Token}}
+X-Device-Fingerprint: {{emp01Fingerprint}}
+Content-Type: multipart/form-data; boundary=TestBoundary
+
+--TestBoundary
+Content-Disposition: form-data; name="assignmentId"
+
+{{assign1Id}}
+--TestBoundary
+Content-Disposition: form-data; name="latitude"
+
+10.776889
+--TestBoundary
+Content-Disposition: form-data; name="longitude"
+
+106.700806
+--TestBoundary
+Content-Disposition: form-data; name="gpsAccuracy"
+
+15.0
+--TestBoundary
+Content-Disposition: form-data; name="capturedAtClient"
+
+2026-06-30T17:03:00+07:00
+--TestBoundary
+Content-Disposition: form-data; name="clientRequestId"
+
+phase7-req-014
+--TestBoundary
+Content-Disposition: form-data; name="isPwaStandalone"
+
+1
+--TestBoundary
+Content-Disposition: form-data; name="photo"; filename="occlusion_detected.mp4"
+Content-Type: video/mp4
+
+< ./scratch/checkin.jpg
+--TestBoundary--
+
+### Test 35: Check-out Employee 01 - Spoof Detected FAIL (Expect: 422 SPOOF_DETECTED)
+POST {{baseUrl}}/attendance/check-out
+Authorization: Bearer {{emp01Token}}
+X-Device-Fingerprint: {{emp01Fingerprint}}
+Content-Type: multipart/form-data; boundary=TestBoundary
+
+--TestBoundary
+Content-Disposition: form-data; name="assignmentId"
+
+{{assign1Id}}
+--TestBoundary
+Content-Disposition: form-data; name="latitude"
+
+10.776889
+--TestBoundary
+Content-Disposition: form-data; name="longitude"
+
+106.700806
+--TestBoundary
+Content-Disposition: form-data; name="gpsAccuracy"
+
+15.0
+--TestBoundary
+Content-Disposition: form-data; name="capturedAtClient"
+
+2026-06-30T17:04:00+07:00
+--TestBoundary
+Content-Disposition: form-data; name="clientRequestId"
+
+phase7-req-015
+--TestBoundary
+Content-Disposition: form-data; name="isPwaStandalone"
+
+1
+--TestBoundary
+Content-Disposition: form-data; name="photo"; filename="spoof_detected.mp4"
+Content-Type: video/mp4
+
+< ./scratch/checkin.jpg
+--TestBoundary--
+
+### Test 36: Check-out Employee 01 - No Face FAIL (Expect: 400 NO_FACE_DETECTED)
+POST {{baseUrl}}/attendance/check-out
+Authorization: Bearer {{emp01Token}}
+X-Device-Fingerprint: {{emp01Fingerprint}}
+Content-Type: multipart/form-data; boundary=TestBoundary
+
+--TestBoundary
+Content-Disposition: form-data; name="assignmentId"
+
+{{assign1Id}}
+--TestBoundary
+Content-Disposition: form-data; name="latitude"
+
+10.776889
+--TestBoundary
+Content-Disposition: form-data; name="longitude"
+
+106.700806
+--TestBoundary
+Content-Disposition: form-data; name="gpsAccuracy"
+
+15.0
+--TestBoundary
+Content-Disposition: form-data; name="capturedAtClient"
+
+2026-06-30T17:05:00+07:00
+--TestBoundary
+Content-Disposition: form-data; name="clientRequestId"
+
+phase7-req-016
+--TestBoundary
+Content-Disposition: form-data; name="isPwaStandalone"
+
+1
+--TestBoundary
+Content-Disposition: form-data; name="photo"; filename="no_face.mp4"
+Content-Type: video/mp4
+
+< ./scratch/checkin.jpg
+--TestBoundary--
+
+### Test 37: Check-out Employee 01 - Multiple Faces FAIL (Expect: 400 MULTIPLE_FACES_DETECTED)
+POST {{baseUrl}}/attendance/check-out
+Authorization: Bearer {{emp01Token}}
+X-Device-Fingerprint: {{emp01Fingerprint}}
+Content-Type: multipart/form-data; boundary=TestBoundary
+
+--TestBoundary
+Content-Disposition: form-data; name="assignmentId"
+
+{{assign1Id}}
+--TestBoundary
+Content-Disposition: form-data; name="latitude"
+
+10.776889
+--TestBoundary
+Content-Disposition: form-data; name="longitude"
+
+106.700806
+--TestBoundary
+Content-Disposition: form-data; name="gpsAccuracy"
+
+15.0
+--TestBoundary
+Content-Disposition: form-data; name="capturedAtClient"
+
+2026-06-30T17:06:00+07:00
+--TestBoundary
+Content-Disposition: form-data; name="clientRequestId"
+
+phase7-req-017
+--TestBoundary
+Content-Disposition: form-data; name="isPwaStandalone"
+
+1
+--TestBoundary
+Content-Disposition: form-data; name="photo"; filename="multiple_faces.mp4"
+Content-Type: video/mp4
+
+< ./scratch/checkin.jpg
+--TestBoundary--
+
+### Test 38: Check-out Employee 01 - Success (Expect: 200, attendance status COMPLETED)
+POST {{baseUrl}}/attendance/check-out
+Authorization: Bearer {{emp01Token}}
+X-Device-Fingerprint: {{emp01Fingerprint}}
+Content-Type: multipart/form-data; boundary=TestBoundary
+
+--TestBoundary
+Content-Disposition: form-data; name="assignmentId"
+
+{{assign1Id}}
+--TestBoundary
+Content-Disposition: form-data; name="latitude"
+
+10.776889
+--TestBoundary
+Content-Disposition: form-data; name="longitude"
+
+106.700806
+--TestBoundary
+Content-Disposition: form-data; name="gpsAccuracy"
+
+15.0
+--TestBoundary
+Content-Disposition: form-data; name="capturedAtClient"
+
+2026-06-30T17:10:00+07:00
+--TestBoundary
+Content-Disposition: form-data; name="clientRequestId"
+
+phase7-req-018
+--TestBoundary
+Content-Disposition: form-data; name="isPwaStandalone"
+
+1
+--TestBoundary
+Content-Disposition: form-data; name="photo"; filename="liveness_success.mp4"
+Content-Type: video/mp4
+
+< ./scratch/checkin.jpg
+--TestBoundary--
+
+### Test 39: Check-out Employee 02 - Success (Expect: 200, attendance status COMPLETED)
+POST {{baseUrl}}/attendance/check-out
+Authorization: Bearer {{emp02Token}}
+X-Device-Fingerprint: {{emp02Fingerprint}}
+Content-Type: multipart/form-data; boundary=TestBoundary
+
+--TestBoundary
+Content-Disposition: form-data; name="assignmentId"
+
+{{assign2Id}}
+--TestBoundary
+Content-Disposition: form-data; name="latitude"
+
+10.776889
+--TestBoundary
+Content-Disposition: form-data; name="longitude"
+
+106.700806
+--TestBoundary
+Content-Disposition: form-data; name="gpsAccuracy"
+
+15.0
+--TestBoundary
+Content-Disposition: form-data; name="capturedAtClient"
+
+2026-06-30T17:10:00+07:00
+--TestBoundary
+Content-Disposition: form-data; name="clientRequestId"
+
+phase7-req-019
+--TestBoundary
+Content-Disposition: form-data; name="isPwaStandalone"
+
+1
+--TestBoundary
+Content-Disposition: form-data; name="photo"; filename="liveness_success.mp4"
+Content-Type: video/mp4
+
+< ./scratch/checkin.jpg
+--TestBoundary--
+
+### Test 40: Check-out Employee 02 - Duplicate Check-out (Expect: 400 ATTENDANCE_ALREADY_CHECKED_OUT)
+POST {{baseUrl}}/attendance/check-out
+Authorization: Bearer {{emp02Token}}
+X-Device-Fingerprint: {{emp02Fingerprint}}
+Content-Type: multipart/form-data; boundary=TestBoundary
+
+--TestBoundary
+Content-Disposition: form-data; name="assignmentId"
+
+{{assign2Id}}
+--TestBoundary
+Content-Disposition: form-data; name="latitude"
+
+10.776889
+--TestBoundary
+Content-Disposition: form-data; name="longitude"
+
+106.700806
+--TestBoundary
+Content-Disposition: form-data; name="gpsAccuracy"
+
+15.0
+--TestBoundary
+Content-Disposition: form-data; name="capturedAtClient"
+
+2026-06-30T17:15:00+07:00
+--TestBoundary
+Content-Disposition: form-data; name="clientRequestId"
+
+phase7-req-020
+--TestBoundary
+Content-Disposition: form-data; name="isPwaStandalone"
+
+1
+--TestBoundary
+Content-Disposition: form-data; name="photo"; filename="liveness_success.mp4"
+Content-Type: video/mp4
+
+< ./scratch/checkin.jpg
+--TestBoundary--

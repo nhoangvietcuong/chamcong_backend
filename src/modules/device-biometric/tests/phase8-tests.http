@@ -1,0 +1,590 @@
+﻿# ====================================================================
+# BỘ KIỂM THỬ API - GIAI ĐOẠN 8: DEVICE BIOMETRIC AUTHENTICATION (WebAuthn)
+# ====================================================================
+#
+# LƯU Ý QUAN TRỌNG:
+# - WebAuthn yêu cầu trình duyệt thật để tạo chữ ký mật mã (signature).
+# - File này kiểm thử toàn bộ logic API: validation, luồng challenge,
+#   giới hạn thiết bị, xóa thiết bị, và audit log.
+# - Các test đòi hỏi signature thật sẽ trả về lỗi WebAuthn nếu dùng dữ liệu giả.
+#   Để test end-to-end đầy đủ, hãy chạy: node scratch/run-phase8-tests.js
+#
+# THỨ TỰ CHẠY:
+# 1. Đảm bảo server đang chạy: npm start
+# 2. Chạy login section (Section 0) theo thứ tự
+# 3. Chạy setup section (Section 1) theo thứ tự
+# 4. Chạy các test theo thứ tự từ trên xuống
+# ====================================================================
+
+@baseUrl = http://localhost:3000/api
+@baseUrlV1 = http://localhost:3000/api/v1
+@workDate = 2026-06-30
+
+# ====================================================================
+# 0. LOGINS ĐỂ LẤY TOKENS
+# ====================================================================
+
+# @name adminLogin
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+X-Device-Fingerprint: fingerprint_admin_01
+
+{
+  "username": "admin",
+  "password": "Admin@123"
+}
+
+###
+@adminToken = {{adminLogin.response.body.data.accessToken}}
+@adminFingerprint = {{adminLogin.response.body.data.deviceFingerprint}}
+
+# @name employee01Login
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+X-Device-Fingerprint: fingerprint_emp_01
+
+{
+  "username": "employee01",
+  "password": "Employee@123"
+}
+
+###
+@emp01Token = {{employee01Login.response.body.data.accessToken}}
+@emp01Fingerprint = {{employee01Login.response.body.data.deviceFingerprint}}
+@emp01Id = 2
+
+# @name employee02Login
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+X-Device-Fingerprint: fingerprint_emp_02
+
+{
+  "username": "employee02",
+  "password": "Employee@123"
+}
+
+###
+@emp02Token = {{employee02Login.response.body.data.accessToken}}
+@emp02Fingerprint = {{employee02Login.response.body.data.deviceFingerprint}}
+@emp02Id = 4
+
+# ====================================================================
+# 1. SETUP DỮ LIỆU KIỂM THỬ
+# ====================================================================
+
+### 1.1 Tạo Work Location (ADMIN)
+# @name createLoc
+POST {{baseUrl}}/admin/work-locations
+Authorization: Bearer {{adminToken}}
+X-Device-Fingerprint: {{adminFingerprint}}
+Content-Type: application/json
+
+{
+  "locationName": "Văn phòng Giai Đoạn 8",
+  "address": "456 WebAuthn Ave, District 3, HCMC",
+  "latitude": 10.776889,
+  "longitude": 106.700806,
+  "allowedRadiusMeter": 100
+}
+
+###
+@locId = {{createLoc.response.body.data.locationId}}
+
+### 1.2 Giao việc cho Employee 01 (ADMIN)
+# @name createAssign1
+POST {{baseUrl}}/admin/assignments
+Authorization: Bearer {{adminToken}}
+X-Device-Fingerprint: {{adminFingerprint}}
+Content-Type: application/json
+
+{
+  "employeeId": {{emp01Id}},
+  "locationId": {{locId}},
+  "workDate": "{{workDate}}"
+}
+
+###
+@assign1Id = {{createAssign1.response.body.data.assignmentId}}
+
+# ====================================================================
+# 2. DANH SÁCH THIẾT BỊ (GET CREDENTIALS) — TEST 1-3
+# ====================================================================
+
+### Test 1: Lấy danh sách thiết bị - Employee 01 (Expect: 200, mảng rỗng ban đầu)
+GET {{baseUrlV1}}/device-biometric/credentials
+Authorization: Bearer {{emp01Token}}
+X-Device-Fingerprint: {{emp01Fingerprint}}
+
+###
+
+### Test 2: Lấy danh sách thiết bị - không có token (Expect: 401 Unauthorized)
+GET {{baseUrlV1}}/device-biometric/credentials
+
+###
+
+### Test 3: Lấy danh sách thiết bị - Employee 02 (Expect: 200, mảng rỗng ban đầu)
+GET {{baseUrlV1}}/device-biometric/credentials
+Authorization: Bearer {{emp02Token}}
+X-Device-Fingerprint: {{emp02Fingerprint}}
+
+###
+
+# ====================================================================
+# 3. ĐĂNG KÝ THIẾT BỊ (REGISTRATION FLOW) — TEST 4-11
+# ====================================================================
+
+### Test 4: Tạo Registration Options - Employee 01
+# (Expect: 200, trả về challenge và publicKeyCredentialCreationOptions)
+# @name beginReg01
+POST {{baseUrlV1}}/device-biometric/registration/options
+Authorization: Bearer {{emp01Token}}
+X-Device-Fingerprint: {{emp01Fingerprint}}
+
+###
+@regChallenge01 = {{beginReg01.response.body.data.challenge}}
+
+### Test 5: Tạo Registration Options - không có token (Expect: 401 Unauthorized)
+POST {{baseUrlV1}}/device-biometric/registration/options
+
+###
+
+### Test 6: Hoàn tất đăng ký - thiếu registrationResponse.id (Expect: 400 VALIDATION_ERROR)
+POST {{baseUrlV1}}/device-biometric/registration/verification
+Authorization: Bearer {{emp01Token}}
+X-Device-Fingerprint: {{emp01Fingerprint}}
+Content-Type: application/json
+
+{
+  "registrationResponse": {
+    "response": {
+      "clientDataJSON": "eyJ0eXBlIjoid2ViYXV0aG4uY3JlYXRlIn0",
+      "attestationObject": "o2NmbXRkbm9uZQ"
+    },
+    "type": "public-key"
+  },
+  "deviceName": "Laptop Cong ty"
+}
+
+###
+
+### Test 7: Hoàn tất đăng ký - thiếu trường registrationResponse (Expect: 400 VALIDATION_ERROR)
+POST {{baseUrlV1}}/device-biometric/registration/verification
+Authorization: Bearer {{emp01Token}}
+X-Device-Fingerprint: {{emp01Fingerprint}}
+Content-Type: application/json
+
+{
+  "deviceName": "My Phone"
+}
+
+###
+
+### Test 8: Hoàn tất đăng ký - session không có challenge (Expect: 422 INVALID_CHALLENGE)
+POST {{baseUrlV1}}/device-biometric/registration/verification
+Authorization: Bearer {{emp01Token}}
+X-Device-Fingerprint: fingerprint_emp_01_no_challenge_session
+Content-Type: application/json
+
+{
+  "registrationResponse": {
+    "id": "mock_credential_id_001",
+    "rawId": "mock_credential_id_001",
+    "type": "public-key",
+    "response": {
+      "clientDataJSON": "eyJ0eXBlIjoid2ViYXV0aG4uY3JlYXRlIn0",
+      "attestationObject": "o2NmbXRkbm9uZQ"
+    }
+  },
+  "deviceName": "My Phone"
+}
+
+###
+
+### Test 9: Hoàn tất đăng ký - chữ ký giả (Expect: lỗi WEBAUTHN_ERROR)
+# Gọi Test 4 trước để tạo challenge hợp lệ trong session, rồi chạy test này
+POST {{baseUrlV1}}/device-biometric/registration/verification
+Authorization: Bearer {{emp01Token}}
+X-Device-Fingerprint: {{emp01Fingerprint}}
+Content-Type: application/json
+
+{
+  "registrationResponse": {
+    "id": "mock_credential_id_001",
+    "rawId": "mock_credential_id_001",
+    "type": "public-key",
+    "response": {
+      "clientDataJSON": "eyJ0eXBlIjoid2ViYXV0aG4uY3JlYXRlIiwiY2hhbGxlbmdlIjoiX19NT0NLX18iLCJvcmlnaW4iOiJodHRwOi8vbG9jYWxob3N0OjMwMDAifQ",
+      "attestationObject": "o2NmbXRkbm9uZWdhdHRTdG10oGhhdXRoRGF0YVJBWENLSVQ"
+    }
+  },
+  "deviceName": "My Phone"
+}
+
+###
+
+### Test 10: Kiểm tra danh sách thiết bị sau khi đăng ký
+GET {{baseUrlV1}}/device-biometric/credentials
+Authorization: Bearer {{emp01Token}}
+X-Device-Fingerprint: {{emp01Fingerprint}}
+
+###
+
+### Test 11: Đăng ký thiết bị thứ 6 - vượt giới hạn (Expect: 409 MAXIMUM_DEVICE_REACHED)
+# Phải đã có đúng 5 thiết bị rồi mới test được case này
+# Dùng node scratch/run-phase8-tests.js để seed 5 thiết bị nhanh
+POST {{baseUrlV1}}/device-biometric/registration/verification
+Authorization: Bearer {{emp01Token}}
+X-Device-Fingerprint: {{emp01Fingerprint}}
+Content-Type: application/json
+
+{
+  "registrationResponse": {
+    "id": "sixth_device_attempt_id",
+    "rawId": "sixth_device_attempt_id",
+    "type": "public-key",
+    "response": {
+      "clientDataJSON": "eyJ0eXBlIjoid2ViYXV0aG4uY3JlYXRlIn0",
+      "attestationObject": "o2NmbXRkbm9uZQ"
+    }
+  },
+  "deviceName": "Thiet bi thu 6 (se bi tu choi)"
+}
+
+###
+
+# ====================================================================
+# 4. XÓA THIẾT BỊ (DELETE CREDENTIAL) — TEST 12-15
+# ====================================================================
+
+### Test 12: Xóa thiết bị - ID không tồn tại (Expect: 404 CREDENTIAL_NOT_FOUND)
+DELETE {{baseUrlV1}}/device-biometric/credentials/nonexistent_credential_xyz_999
+Authorization: Bearer {{emp01Token}}
+X-Device-Fingerprint: {{emp01Fingerprint}}
+
+###
+
+### Test 13: Xóa thiết bị - không có token (Expect: 401 Unauthorized)
+DELETE {{baseUrlV1}}/device-biometric/credentials/some_credential_id
+
+###
+
+### Test 14: Xóa thiết bị của người khác (Expect: 403 CREDENTIAL_REVOKED)
+# Employee 02 cố xóa thiết bị của Employee 01
+DELETE {{baseUrlV1}}/device-biometric/credentials/device_01_id
+Authorization: Bearer {{emp02Token}}
+X-Device-Fingerprint: {{emp02Fingerprint}}
+
+###
+
+### Test 15: Xóa thiết bị hợp lệ (Expect: 200)
+# Thay "device_01_id" bằng credential ID thật lấy từ Test 10
+DELETE {{baseUrlV1}}/device-biometric/credentials/device_01_id
+Authorization: Bearer {{emp01Token}}
+X-Device-Fingerprint: {{emp01Fingerprint}}
+
+###
+
+# ====================================================================
+# 5. XÁC THỰC THIẾT BỊ (AUTHENTICATION FLOW) — TEST 16-20
+# ====================================================================
+
+### Test 16: Tạo Authentication Options - Employee 01
+# (Expect: 200 khi có ít nhất 1 thiết bị; 404 nếu chưa có thiết bị nào)
+# @name beginAuth01
+POST {{baseUrlV1}}/device-biometric/authentication/options
+Authorization: Bearer {{emp01Token}}
+X-Device-Fingerprint: {{emp01Fingerprint}}
+
+###
+@authChallenge01 = {{beginAuth01.response.body.data.challenge}}
+
+### Test 17: Tạo Authentication Options - không có token (Expect: 401 Unauthorized)
+POST {{baseUrlV1}}/device-biometric/authentication/options
+
+###
+
+### Test 18: Hoàn tất xác thực - thiếu trường bắt buộc (Expect: 400 VALIDATION_ERROR)
+POST {{baseUrlV1}}/device-biometric/authentication/verification
+Authorization: Bearer {{emp01Token}}
+X-Device-Fingerprint: {{emp01Fingerprint}}
+Content-Type: application/json
+
+{
+  "authenticationResponse": {
+    "id": "mock_credential_id",
+    "type": "public-key",
+    "response": {
+      "clientDataJSON": "eyJ0eXBlIjoid2ViYXV0aG4uZ2V0In0"
+    }
+  }
+}
+
+###
+
+### Test 19: Hoàn tất xác thực - session không có challenge (Expect: 422 INVALID_CHALLENGE)
+POST {{baseUrlV1}}/device-biometric/authentication/verification
+Authorization: Bearer {{emp01Token}}
+X-Device-Fingerprint: fingerprint_emp_01_no_auth_challenge
+Content-Type: application/json
+
+{
+  "authenticationResponse": {
+    "id": "some_credential_id",
+    "rawId": "some_credential_id",
+    "type": "public-key",
+    "response": {
+      "clientDataJSON": "eyJ0eXBlIjoid2ViYXV0aG4uZ2V0In0",
+      "authenticatorData": "SZYN5YgOjGh0NBcPZHZgW4_krrmihjLHmVzzuoMdl2MAAAAAAA",
+      "signature": "FAKE_SIGNATURE_DATA"
+    }
+  }
+}
+
+###
+
+### Test 20: Hoàn tất xác thực - chữ ký giả (Expect: lỗi WEBAUTHN_ERROR)
+# Gọi Test 16 trước để tạo challenge, rồi chạy test này
+POST {{baseUrlV1}}/device-biometric/authentication/verification
+Authorization: Bearer {{emp01Token}}
+X-Device-Fingerprint: {{emp01Fingerprint}}
+Content-Type: application/json
+
+{
+  "authenticationResponse": {
+    "id": "device_01_id",
+    "rawId": "device_01_id",
+    "type": "public-key",
+    "response": {
+      "clientDataJSON": "eyJ0eXBlIjoid2ViYXV0aG4uZ2V0IiwiY2hhbGxlbmdlIjoiX19NT0NLX0NIQUxMRU5HRV9fIiwib3JpZ2luIjoiaHR0cDovL2xvY2FsaG9zdDozMDAwIn0",
+      "authenticatorData": "SZYN5YgOjGh0NBcPZHZgW4_krrmihjLHmVzzuoMdl2MAAAAAAA",
+      "signature": "MEQCIAL_FAKE_SIGNATURE_NOT_VALID"
+    }
+  }
+}
+
+###
+
+# ====================================================================
+# 6. CHECK-IN / CHECK-OUT VỚI WEBAUTHN DEVICE AUTH — TEST 21-24
+# ====================================================================
+
+### Test 21: Check-in thiếu deviceAuth (Expect: 422 AUTHENTICATION_FAILED khi policy=always)
+POST {{baseUrl}}/attendance/check-in
+Authorization: Bearer {{emp01Token}}
+X-Device-Fingerprint: {{emp01Fingerprint}}
+Content-Type: multipart/form-data; boundary=TestBoundary
+
+--TestBoundary
+Content-Disposition: form-data; name="assignmentId"
+
+{{assign1Id}}
+--TestBoundary
+Content-Disposition: form-data; name="latitude"
+
+10.776889
+--TestBoundary
+Content-Disposition: form-data; name="longitude"
+
+106.700806
+--TestBoundary
+Content-Disposition: form-data; name="gpsAccuracy"
+
+15.0
+--TestBoundary
+Content-Disposition: form-data; name="capturedAtClient"
+
+{{workDate}}T08:00:00+07:00
+--TestBoundary
+Content-Disposition: form-data; name="clientRequestId"
+
+550e8400-e29b-41d4-a716-446655440021
+--TestBoundary
+Content-Disposition: form-data; name="isPwaStandalone"
+
+1
+--TestBoundary
+Content-Disposition: form-data; name="photo"; filename="checkin.jpg"
+Content-Type: image/jpeg
+
+< ./scratch/checkin.jpg
+--TestBoundary--
+
+###
+
+### Test 22: Tạo Authentication Options trước check-in (để lấy challenge)
+# @name beginAuthCheckin
+POST {{baseUrlV1}}/device-biometric/authentication/options
+Authorization: Bearer {{emp01Token}}
+X-Device-Fingerprint: {{emp01Fingerprint}}
+
+###
+
+### Test 23: Check-in với deviceAuth (chữ ký giả - Expect: lỗi WebAuthn)
+# Để test thành công cần WebAuthn thật từ trình duyệt
+# Hoặc chạy: node scratch/run-phase8-tests.js (có mock WebAuthn)
+POST {{baseUrl}}/attendance/check-in
+Authorization: Bearer {{emp01Token}}
+X-Device-Fingerprint: {{emp01Fingerprint}}
+Content-Type: multipart/form-data; boundary=TestBoundary
+
+--TestBoundary
+Content-Disposition: form-data; name="assignmentId"
+
+{{assign1Id}}
+--TestBoundary
+Content-Disposition: form-data; name="latitude"
+
+10.776889
+--TestBoundary
+Content-Disposition: form-data; name="longitude"
+
+106.700806
+--TestBoundary
+Content-Disposition: form-data; name="gpsAccuracy"
+
+15.0
+--TestBoundary
+Content-Disposition: form-data; name="capturedAtClient"
+
+{{workDate}}T08:00:00+07:00
+--TestBoundary
+Content-Disposition: form-data; name="clientRequestId"
+
+550e8400-e29b-41d4-a716-446655440022
+--TestBoundary
+Content-Disposition: form-data; name="isPwaStandalone"
+
+1
+--TestBoundary
+Content-Disposition: form-data; name="deviceAuth[id]"
+
+device_01_id
+--TestBoundary
+Content-Disposition: form-data; name="deviceAuth[type]"
+
+public-key
+--TestBoundary
+Content-Disposition: form-data; name="deviceAuth[response][clientDataJSON]"
+
+eyJ0eXBlIjoid2ViYXV0aG4uZ2V0IiwiY2hhbGxlbmdlIjoiX19NT0NLX0NIQUxMRU5HRV9fIiwib3JpZ2luIjoiaHR0cDovL2xvY2FsaG9zdDozMDAwIn0
+--TestBoundary
+Content-Disposition: form-data; name="deviceAuth[response][authenticatorData]"
+
+SZYN5YgOjGh0NBcPZHZgW4_krrmihjLHmVzzuoMdl2MAAAAAAA
+--TestBoundary
+Content-Disposition: form-data; name="deviceAuth[response][signature]"
+
+MEQCIAL_FAKE_SIGNATURE_NOT_VALID_FOR_REAL_WEBAUTHN
+--TestBoundary
+Content-Disposition: form-data; name="photo"; filename="checkin.jpg"
+Content-Type: image/jpeg
+
+< ./scratch/checkin.jpg
+--TestBoundary--
+
+###
+
+### Test 24: Check-out với deviceAuth (chữ ký giả - Expect: lỗi WebAuthn)
+POST {{baseUrl}}/attendance/check-out
+Authorization: Bearer {{emp01Token}}
+X-Device-Fingerprint: {{emp01Fingerprint}}
+Content-Type: multipart/form-data; boundary=TestBoundary
+
+--TestBoundary
+Content-Disposition: form-data; name="assignmentId"
+
+{{assign1Id}}
+--TestBoundary
+Content-Disposition: form-data; name="latitude"
+
+10.776889
+--TestBoundary
+Content-Disposition: form-data; name="longitude"
+
+106.700806
+--TestBoundary
+Content-Disposition: form-data; name="gpsAccuracy"
+
+15.0
+--TestBoundary
+Content-Disposition: form-data; name="capturedAtClient"
+
+{{workDate}}T17:00:00+07:00
+--TestBoundary
+Content-Disposition: form-data; name="clientRequestId"
+
+550e8400-e29b-41d4-a716-446655440023
+--TestBoundary
+Content-Disposition: form-data; name="isPwaStandalone"
+
+1
+--TestBoundary
+Content-Disposition: form-data; name="deviceAuth[id]"
+
+device_01_id
+--TestBoundary
+Content-Disposition: form-data; name="deviceAuth[type]"
+
+public-key
+--TestBoundary
+Content-Disposition: form-data; name="deviceAuth[response][clientDataJSON]"
+
+eyJ0eXBlIjoid2ViYXV0aG4uZ2V0IiwiY2hhbGxlbmdlIjoiX19NT0NLX0NIQUxMRU5HRV9fIiwib3JpZ2luIjoiaHR0cDovL2xvY2FsaG9zdDozMDAwIn0
+--TestBoundary
+Content-Disposition: form-data; name="deviceAuth[response][authenticatorData]"
+
+SZYN5YgOjGh0NBcPZHZgW4_krrmihjLHmVzzuoMdl2MAAAAAAA
+--TestBoundary
+Content-Disposition: form-data; name="deviceAuth[response][signature]"
+
+MEQCIAL_FAKE_SIGNATURE_NOT_VALID_FOR_REAL_WEBAUTHN
+--TestBoundary
+Content-Disposition: form-data; name="photo"; filename="checkout.jpg"
+Content-Type: image/jpeg
+
+< ./scratch/checkout.jpg
+--TestBoundary--
+
+###
+
+# ====================================================================
+# 7. KIỂM TRA AUDIT LOGS — TEST 25
+# ====================================================================
+
+### Test 25: Xem System Logs của Employee 01
+# (Expect: có action DEVICE_REGISTERED, DEVICE_REMOVED, SIGNATURE_VERIFIED)
+GET {{baseUrl}}/admin/system-logs?employeeId={{emp01Id}}&limit=30
+Authorization: Bearer {{adminToken}}
+X-Device-Fingerprint: {{adminFingerprint}}
+
+###
+
+# ====================================================================
+# PHỤ LỤC: HƯỚNG DẪN TEST ĐẦY ĐỦ
+# ====================================================================
+#
+# Vì WebAuthn cần chữ ký mật mã từ thiết bị phần cứng thật, có 2 cách
+# kiểm thử đầy đủ:
+#
+# CÁCH 1 - Chạy automated test với WebAuthn mock:
+#   $env:MOCK_WEBAUTHN="true"; npm start
+#   node scratch/run-phase8-tests.js
+#   (16/16 tests pass, bao gồm cả check-in/check-out với WebAuthn)
+#
+# CÁCH 2 - Dùng trình duyệt thật (Chrome/Edge/Safari):
+#   1. Mở app frontend, đăng nhập bằng employee01
+#   2. Vào trang Quan ly thiet bi - nhan Dang ky thiet bi
+#   3. Trình duyệt yêu cầu xác thực bằng vân tay/Face ID
+#   4. Sau khi đăng ký, sao chép credential ID từ GET /credentials
+#   5. Dùng credential ID đó thay "device_01_id" trong các test
+#
+# Các test chạy được ngay (không cần WebAuthn thật):
+#   Test 1, 2, 3 (GET credentials - auth check)
+#   Test 4, 5   (registration options - auth check)
+#   Test 6, 7, 8 (validation errors, INVALID_CHALLENGE)
+#   Test 12, 13  (credential not found, unauthorized)
+#   Test 17      (auth options - unauthorized)
+#   Test 18, 19  (authentication validation errors)
+#   Test 21      (check-in without deviceAuth)
+#   Test 25      (audit logs)
+# ====================================================================

@@ -1,0 +1,26 @@
+# Dependencies
+node_modules/
+
+# Environment variables & Secrets (Quan trọng)
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Logs
+*.log
+logs/
+queue-out.json
+npm-debug.log*
+
+# Temporary files & Uploads
+uploads/*
+!uploads/.gitkeep
+scratch/
+
+# OS & Editor files
+.DS_Store
+.vscode/
+.idea/
+*.swp

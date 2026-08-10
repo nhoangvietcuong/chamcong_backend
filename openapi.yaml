@@ -1,0 +1,170 @@
+openapi: 3.0.3
+info:
+  title: ChamCong API Documentation
+  description: API specification for ChamCong attendance, device biometric, and liveness-based face recognition system.
+  version: 1.0.0
+servers:
+  - url: http://localhost:3000/api
+paths:
+  /attendance/check-in:
+    post:
+      summary: Employee Check-in
+      description: Performs face-based eKYC check-in with GPS location validation and liveness check.
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                assignmentId:
+                  type: integer
+                  description: The work assignment ID for today
+                latitude:
+                  type: number
+                  format: float
+                  description: GPS Latitude of the employee
+                longitude:
+                  type: number
+                  format: float
+                  description: GPS Longitude of the employee
+                gpsAccuracy:
+                  type: number
+                  format: float
+                  description: GPS Accuracy in meters
+                capturedAtClient:
+                  type: string
+                  format: date-time
+                  description: Check-in timestamp from the client device
+                clientRequestId:
+                  type: string
+                  format: uuid
+                  description: Idempotency client request ID
+                isPwaStandalone:
+                  type: integer
+                  enum: [0, 1]
+                  description: Whether the app is running in PWA standalone mode
+                photo:
+                  type: string
+                  format: binary
+                  description: Self-taken photo for check-in
+                verificationPhoto:
+                  type: string
+                  format: binary
+                  description: Secondary verification photo
+                embedding:
+                  type: string
+                  description: Client-side calculated WebGL face embedding (comma-separated or JSON)
+      responses:
+        '200':
+          description: Check-in successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: Check-in thành công
+                  data:
+                    type: object
+                    properties:
+                      attendanceId:
+                        type: integer
+                        example: 105
+                      assignmentId:
+                        type: integer
+                        example: 201
+                      checkInTime:
+                        type: string
+                        format: date-time
+                        example: '2026-07-07T15:45:00Z'
+                      attendanceStatus:
+                        type: string
+                        example: IN_PROGRESS
+                      locationValidation:
+                        type: object
+                        properties:
+                          distanceMeter:
+                            type: number
+                            example: 12.54
+                          allowedRadiusMeter:
+                            type: integer
+                            example: 100
+                          gpsAccuracy:
+                            type: number
+                            example: 15.0
+                          validationResult:
+                            type: string
+                            example: ACCEPTED
+                          riskLevel:
+                            type: string
+                            example: LOW
+                      assignedLocation:
+                        type: object
+                        properties:
+                          locationId:
+                            type: integer
+                            example: 1
+                          locationName:
+                            type: string
+                            example: Công trình A
+                          latitude:
+                            type: number
+                            example: 10.762622
+                          longitude:
+                            type: number
+                            example: 106.660172
+                          address:
+                            type: string
+                            example: 123 Đường A, Quận 1
+                          allowedRadiusMeter:
+                            type: integer
+                            example: 100
+                          isCompanyLocation:
+                            type: boolean
+                            example: false
+                      actualCheckInLocation:
+                        type: object
+                        properties:
+                          locationId:
+                            type: integer
+                            example: 2
+                          locationName:
+                            type: string
+                            example: Văn phòng chính
+                          latitude:
+                            type: number
+                            example: 10.764012
+                          longitude:
+                            type: number
+                            example: 106.662054
+                          address:
+                            type: string
+                            example: 456 Đường B, Quận 3
+                          allowedRadiusMeter:
+                            type: integer
+                            example: 150
+                          isCompanyLocation:
+                            type: boolean
+                            example: true
+                      isCompanyLocation:
+                        type: boolean
+                        example: true
+        '400':
+          description: Validation error (e.g. outside radius, low GPS accuracy, already checked-in)
+        '403':
+          description: Unauthorized to check-in (e.g. face similarity low, forbidden user role)
+        '404':
+          description: Active profile or assignment not found
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT

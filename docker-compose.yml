@@ -1,0 +1,48 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:15-alpine
+    container_name: chamcong-db
+    environment:
+      - POSTGRES_DB=CHAM_CONG
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=1
+    ports:
+      - "5433:5432" # Maps port 5433 on Windows host to 5432 in the DB container
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      # Automatically initialize database schema if the SQL file exists
+      - ./Cham_Cong_Main_Database_Khong_Phan_Ca_Final.sql:/docker-entrypoint-initdb.d/init.sql
+    restart: always
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: chamcong-app-dev
+    ports:
+      - "3000:3000"
+    volumes:
+      - .:/app             # Mount code from Windows into container
+      - /app/node_modules  # Keep node_modules separate in container (prevent host overwrite)
+    environment:
+      - PORT=3000
+      - NODE_ENV=development
+      - PGHOST=db          # Connect to db service
+      - PGPORT=5432        # Postgres internal port
+      - PGUSER=postgres
+      - PGPASSWORD=1
+      - PGDATABASE=CHAM_CONG
+      - JWT_ACCESS_SECRET=your_jwt_access_secret_change_me
+      - JWT_ACCESS_EXPIRES_IN=15m
+      - REFRESH_TOKEN_EXPIRES_DAYS=30
+      - REFRESH_TOKEN_HASH_SECRET=your_jwt_refresh_secret_change_me
+      - BCRYPT_SALT_ROUNDS=12
+      - APP_TIMEZONE=Asia/Ho_Chi_Minh
+    depends_on:
+      - db
+    restart: always
+
+volumes:
+  pgdata:

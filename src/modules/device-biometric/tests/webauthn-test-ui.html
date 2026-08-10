@@ -1,0 +1,1000 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Phase 8 — WebAuthn Device Biometric Test UI</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg-base: #0d1117;
+  --bg-card: #161b22;
+  --bg-card2: #1c2230;
+  --border: rgba(255,255,255,0.08);
+  --accent: #58a6ff;
+  --accent2: #7c6af7;
+  --accent3: #3fb950;
+  --danger: #f85149;
+  --text: #e6edf3;
+  --text-muted: #7d8590;
+  --radius: 12px;
+}
+body {
+  font-family: 'Inter', sans-serif;
+  background: var(--bg-base);
+  color: var(--text);
+  min-height: 100vh;
+  display: grid;
+  grid-template-columns: 260px 1fr;
+  grid-template-rows: 60px 1fr;
+}
+header {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 24px;
+  height: 60px;
+  background: var(--bg-card);
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+.logo-text { font-size: 15px; font-weight: 600; }
+.logo-text span { color: var(--accent); }
+.server-badge {
+  margin-left: auto;
+  display: flex; align-items: center; gap: 8px;
+  font-size: 12px; color: var(--text-muted);
+  background: rgba(255,255,255,0.04);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 4px 12px;
+}
+.server-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--danger); }
+.server-dot.online { background: var(--accent3); box-shadow: 0 0 6px var(--accent3); }
+aside {
+  background: var(--bg-card);
+  border-right: 1px solid var(--border);
+  padding: 20px 12px;
+  display: flex; flex-direction: column; gap: 4px;
+  overflow-y: auto;
+}
+.nav-group-label {
+  font-size: 10px; font-weight: 600; text-transform: uppercase;
+  letter-spacing: 1px; color: var(--text-muted); padding: 12px 8px 6px;
+}
+.nav-btn {
+  display: flex; align-items: center; gap: 10px;
+  padding: 9px 12px; border-radius: 8px; border: none;
+  background: transparent; color: var(--text-muted);
+  font-size: 13px; font-weight: 500; cursor: pointer;
+  transition: all 0.15s; width: 100%; text-align: left;
+}
+.nav-btn:hover { background: rgba(255,255,255,0.05); color: var(--text); }
+.nav-btn.active { background: rgba(88,166,255,0.12); color: var(--accent); }
+.nav-btn .icon { font-size: 16px; width: 20px; text-align: center; }
+main { padding: 24px; overflow-y: auto; display: flex; flex-direction: column; gap: 20px; }
+.section { display: none; }
+.section.active { display: flex; flex-direction: column; gap: 20px; }
+.section-title { font-size: 18px; font-weight: 600; display: flex; align-items: center; gap: 10px; }
+.section-desc { font-size: 13px; color: var(--text-muted); margin-top: 4px; }
+.card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px;
+}
+.card-title {
+  font-size: 12px; font-weight: 600; color: var(--text-muted);
+  text-transform: uppercase; letter-spacing: 0.5px;
+  margin-bottom: 16px; display: flex; align-items: center; gap: 8px;
+}
+.form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.form-row { display: flex; flex-direction: column; gap: 6px; }
+label { font-size: 12px; font-weight: 500; color: var(--text-muted); }
+input, select {
+  background: var(--bg-base); border: 1px solid var(--border);
+  border-radius: 8px; color: var(--text); font-size: 13px;
+  padding: 8px 12px; font-family: inherit; outline: none; width: 100%;
+  transition: border-color 0.15s;
+}
+input:focus, select:focus { border-color: var(--accent); }
+.btn {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 9px 18px; border-radius: 8px; border: none;
+  font-size: 13px; font-weight: 600; cursor: pointer;
+  transition: all 0.15s; font-family: inherit;
+}
+.btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.btn-primary { background: var(--accent); color: #000; }
+.btn-primary:hover:not(:disabled) { background: #79b8ff; }
+.btn-success { background: var(--accent3); color: #000; }
+.btn-success:hover:not(:disabled) { background: #56d364; }
+.btn-danger { background: var(--danger); color: #fff; }
+.btn-danger:hover:not(:disabled) { background: #ff6b63; }
+.btn-ghost { background: rgba(255,255,255,0.06); color: var(--text); border: 1px solid var(--border); }
+.btn-ghost:hover:not(:disabled) { background: rgba(255,255,255,0.1); }
+.btn-row { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 12px; }
+.alert {
+  padding: 10px 14px; border-radius: 8px; font-size: 13px;
+  display: flex; gap: 10px; align-items: flex-start;
+  margin-top: 8px; animation: fadeIn 0.2s ease;
+}
+.alert-success { background: rgba(63,185,80,0.1); border: 1px solid rgba(63,185,80,0.25); color: #56d364; }
+.alert-error { background: rgba(248,81,73,0.1); border: 1px solid rgba(248,81,73,0.25); color: #ff7b72; }
+.alert-info { background: rgba(88,166,255,0.08); border: 1px solid rgba(88,166,255,0.2); color: var(--accent); }
+.alert-warning { background: rgba(210,153,34,0.1); border: 1px solid rgba(210,153,34,0.25); color: #e3b341; }
+@keyframes fadeIn { from { opacity:0; transform: translateY(-4px); } to { opacity:1; transform: none; } }
+.auth-info-bar {
+  background: rgba(88,166,255,0.06); border: 1px solid rgba(88,166,255,0.15);
+  border-radius: 8px; padding: 10px 14px; font-size: 12px; color: var(--text-muted);
+  display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+}
+.auth-info-bar strong { color: var(--accent); }
+.device-list { display: grid; gap: 12px; }
+.device-card {
+  background: var(--bg-card2); border: 1px solid var(--border);
+  border-radius: 10px; padding: 14px 16px;
+  display: flex; align-items: center; gap: 14px; transition: border-color 0.2s;
+}
+.device-card:hover { border-color: rgba(88,166,255,0.3); }
+.device-icon {
+  width: 40px; height: 40px; border-radius: 10px;
+  background: rgba(124,106,247,0.15);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 20px; flex-shrink: 0;
+}
+.device-info { flex: 1; min-width: 0; }
+.device-name { font-size: 14px; font-weight: 600; }
+.device-id { font-size: 11px; color: var(--text-muted); font-family: monospace; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.device-date { font-size: 11px; color: var(--text-muted); }
+.empty-state { text-align: center; padding: 40px 20px; color: var(--text-muted); font-size: 13px; }
+.empty-icon { font-size: 40px; margin-bottom: 10px; opacity: 0.4; }
+.response-box {
+  background: var(--bg-base); border: 1px solid var(--border); border-radius: 8px;
+  padding: 12px; font-family: monospace; font-size: 11.5px; line-height: 1.6;
+  color: #a5d6ff; overflow-x: auto; max-height: 240px; overflow-y: auto;
+  white-space: pre-wrap; word-break: break-all;
+}
+.response-label {
+  font-size: 11px; font-weight: 600; color: var(--text-muted);
+  text-transform: uppercase; letter-spacing: 0.5px;
+  margin-bottom: 6px; margin-top: 14px;
+}
+.spinner {
+  width: 16px; height: 16px; border: 2px solid rgba(255,255,255,0.2);
+  border-top-color: #fff; border-radius: 50%;
+  animation: spin 0.6s linear infinite; flex-shrink: 0;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.steps { display: flex; margin-bottom: 20px; border-radius: 10px; overflow: hidden; border: 1px solid var(--border); }
+.step {
+  flex: 1; text-align: center; padding: 10px 8px; font-size: 12px; font-weight: 500;
+  color: var(--text-muted); background: var(--bg-base); border-right: 1px solid var(--border); transition: all 0.2s;
+}
+.step:last-child { border-right: none; }
+.step.done { background: rgba(63,185,80,0.08); color: var(--accent3); }
+.step.active { background: rgba(88,166,255,0.08); color: var(--accent); font-weight: 600; }
+.step-num { display: block; font-size: 10px; opacity: 0.6; margin-bottom: 2px; }
+.badge { display: inline-block; padding: 2px 8px; border-radius: 20px; font-size: 11px; font-weight: 600; }
+.badge-blue { background: rgba(88,166,255,0.15); color: var(--accent); }
+.badge-green { background: rgba(63,185,80,0.15); color: var(--accent3); }
+.badge-red { background: rgba(248,81,73,0.15); color: var(--danger); }
+.badge-purple { background: rgba(124,106,247,0.15); color: var(--accent2); }
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 3px; }
+</style>
+</head>
+<body>
+
+<!-- FILE:// ORIGIN WARNING BANNER -->
+<div id="fileOriginBanner" style="display:none;position:fixed;top:0;left:0;right:0;z-index:9999;background:#b91c1c;color:#fff;padding:14px 20px;font-family:sans-serif;font-size:13px;line-height:1.5;box-shadow:0 2px 12px rgba(0,0,0,0.5)">
+  <strong>⛔ WebAuthn không hoạt động từ file://</strong><br>
+  Bạn đang mở file trực tiếp từ ổ đĩa. WebAuthn chỉ chạy được trên <code style="background:rgba(255,255,255,0.2);padding:1px 6px;border-radius:4px">http://localhost</code> hoặc HTTPS.<br>
+  👉 Hãy mở đúng URL này trong trình duyệt:
+  <a href="http://localhost:3000/test/webauthn" style="color:#fde68a;font-weight:700;margin-left:6px">http://localhost:3000/test/webauthn</a>
+  <button onclick="window.location.href='http://localhost:3000/test/webauthn'" style="margin-left:12px;background:#fff;color:#b91c1c;border:none;border-radius:6px;padding:5px 14px;font-size:13px;font-weight:700;cursor:pointer">Mở ngay →</button>
+</div>
+
+<header>
+  <span style="font-size:22px">🔐</span>
+  <div class="logo-text">Phase 8 — <span>WebAuthn Device Biometric</span> Test UI</div>
+  <div class="server-badge">
+    <div class="server-dot" id="serverDot"></div>
+    <span id="serverStatus">Kiểm tra...</span>
+  </div>
+</header>
+
+<aside>
+  <div class="nav-group-label">Authentication</div>
+  <button class="nav-btn active" onclick="showSection('login')" id="nav-login">
+    <span class="icon">🔑</span> Đăng nhập
+  </button>
+  <div class="nav-group-label">Device Management</div>
+  <button class="nav-btn" onclick="showSection('devices')" id="nav-devices">
+    <span class="icon">💻</span> Quản lý thiết bị
+  </button>
+  <button class="nav-btn" onclick="showSection('register')" id="nav-register">
+    <span class="icon">➕</span> Đăng ký Passkey
+  </button>
+  <button class="nav-btn" onclick="showSection('authenticate')" id="nav-authenticate">
+    <span class="icon">🛡️</span> Xác thực thiết bị
+  </button>
+  <div class="nav-group-label">Attendance</div>
+  <button class="nav-btn" onclick="showSection('checkin')" id="nav-checkin">
+    <span class="icon">📍</span> Check-in với Passkey
+  </button>
+  <button class="nav-btn" onclick="showSection('checkout')" id="nav-checkout">
+    <span class="icon">🏁</span> Check-out với Passkey
+  </button>
+  <div class="nav-group-label">Info</div>
+  <button class="nav-btn" onclick="showSection('logs')" id="nav-logs">
+    <span class="icon">📋</span> System Logs
+  </button>
+</aside>
+
+<main>
+
+<div id="adminPanel" style="display:none; margin-bottom:16px;" class="auth-info-bar">
+  ⚙️ <strong>Admin Dashboard</strong> | Quản lý thiết bị cho nhân viên:
+  <select id="adminTargetEmployee" onchange="onTargetEmployeeChange()" style="width:auto; display:inline-block; margin-left:8px; padding:4px 10px; background:var(--bg-base); border:1px solid var(--border); color:var(--text); border-radius:6px; outline:none;">
+    <option value="2">Employee 01 (ID: 2 - employee01)</option>
+    <option value="4">Employee 02 (ID: 4 - employee02)</option>
+  </select>
+</div>
+
+
+<!-- LOGIN -->
+<div class="section active" id="section-login">
+  <div>
+    <div class="section-title">🔑 Đăng nhập</div>
+    <div class="section-desc">Đăng nhập để lấy access token cho tất cả các request phía dưới.</div>
+  </div>
+  <div id="authBar" style="display:none" class="auth-info-bar">
+    ✅ Đã đăng nhập | Tài khoản: <strong id="authUser">—</strong>
+  </div>
+  <div class="card">
+    <div class="card-title">🧑‍💼 Thông tin đăng nhập</div>
+    <div class="form-grid">
+      <div class="form-row">
+        <label>Server URL</label>
+        <input id="serverUrl" value="http://localhost:3000">
+      </div>
+      <div class="form-row">
+        <label>Device Fingerprint</label>
+        <input id="loginFingerprint" value="fingerprint_emp_01">
+      </div>
+      <div class="form-row">
+        <label>Username</label>
+        <input id="loginUsername" value="employee01">
+      </div>
+      <div class="form-row">
+        <label>Password</label>
+        <input id="loginPassword" type="password" value="Employee@123">
+      </div>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-primary" onclick="doLogin()">🔑 Đăng nhập</button>
+      <button class="btn btn-ghost" onclick="quickLogin('admin')">⚡ Admin</button>
+      <button class="btn btn-ghost" onclick="quickLogin('emp01')">⚡ Employee 01</button>
+      <button class="btn btn-ghost" onclick="quickLogin('emp02')">⚡ Employee 02</button>
+    </div>
+    <div id="loginResponse"></div>
+  </div>
+</div>
+
+<!-- DEVICES -->
+<div class="section" id="section-devices">
+  <div>
+    <div class="section-title">💻 Quản lý thiết bị đã đăng ký</div>
+    <div class="section-desc">Xem và xóa các Passkey đã đăng ký cho tài khoản hiện tại.</div>
+  </div>
+  <div class="card">
+    <div class="card-title">📋 Danh sách thiết bị <span class="badge badge-blue" id="deviceCount">0</span></div>
+    <div class="btn-row" style="margin-top:0;margin-bottom:16px">
+      <button class="btn btn-ghost" onclick="loadDevices()">🔄 Tải lại</button>
+    </div>
+    <div id="deviceList">
+      <div class="empty-state"><div class="empty-icon">🔐</div>Chưa có thiết bị nào.</div>
+    </div>
+  </div>
+</div>
+
+<!-- REGISTER -->
+<div class="section" id="section-register">
+  <div>
+    <div class="section-title">➕ Đăng ký Passkey mới</div>
+    <div class="section-desc">Trình duyệt sẽ yêu cầu xác thực sinh trắc học (vân tay, Face ID, hoặc PIN).</div>
+  </div>
+  <div class="steps">
+    <div class="step active" id="step-reg-1"><span class="step-num">Bước 1</span>Tạo challenge</div>
+    <div class="step" id="step-reg-2"><span class="step-num">Bước 2</span>Sinh trắc học</div>
+    <div class="step" id="step-reg-3"><span class="step-num">Bước 3</span>Lưu thiết bị</div>
+  </div>
+  <div class="card">
+    <div class="card-title">⚙️ Cấu hình</div>
+    <div class="form-grid">
+      <div class="form-row">
+        <label>Tên thiết bị</label>
+        <input id="regDeviceName" placeholder="VD: MacBook Pro, iPhone 15...">
+      </div>
+      <div class="form-row">
+        <label>Phương thức xác thực (Attachment)</label>
+        <select id="regAttachment">
+          <option value="">Tự động (Để trình duyệt quyết định)</option>
+          <option value="cross-platform" selected>Điện thoại / Khóa bảo mật (Quét mã QR bằng iPhone/Android)</option>
+          <option value="platform">Thiết bị hiện tại (Vân tay/Windows Hello của máy này)</option>
+        </select>
+      </div>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-primary" onclick="doRegister()" id="btnRegister">🔐 Đăng ký Passkey</button>
+    </div>
+    <div id="registerResponse"></div>
+  </div>
+</div>
+
+<!-- AUTHENTICATE -->
+<div class="section" id="section-authenticate">
+  <div>
+    <div class="section-title">🛡️ Xác thực thiết bị (Standalone)</div>
+    <div class="section-desc">Xác thực bằng passkey đã đăng ký — kiểm tra toàn bộ luồng WebAuthn assertion.</div>
+  </div>
+  <div class="steps">
+    <div class="step active" id="step-auth-1"><span class="step-num">Bước 1</span>Tạo challenge</div>
+    <div class="step" id="step-auth-2"><span class="step-num">Bước 2</span>Ký passkey</div>
+    <div class="step" id="step-auth-3"><span class="step-num">Bước 3</span>Xác minh server</div>
+  </div>
+  <div class="card">
+    <div class="btn-row" style="margin-top:0">
+      <button class="btn btn-primary" onclick="doAuthenticate()" id="btnAuthenticate">🛡️ Xác thực ngay</button>
+    </div>
+    <div id="authResponse"></div>
+  </div>
+</div>
+
+<!-- CHECK-IN -->
+<div class="section" id="section-checkin">
+  <div>
+    <div class="section-title">📍 Check-in với Passkey</div>
+    <div class="section-desc">Check-in kết hợp WebAuthn. Trình duyệt sẽ yêu cầu sinh trắc học trước khi gửi dữ liệu.</div>
+  </div>
+  <div class="card">
+    <div class="card-title">📋 Thông tin check-in</div>
+    <div class="form-grid">
+      <div class="form-row">
+        <label>Assignment ID</label>
+        <input id="ciAssignmentId" type="number" placeholder="Nhập assignment ID">
+      </div>
+      <div class="form-row">
+        <label>Client Request ID (UUID, bỏ trống = tự sinh)</label>
+        <input id="ciClientRequestId" placeholder="Tự động sinh nếu bỏ trống">
+      </div>
+      <div class="form-row">
+        <label>Latitude</label>
+        <input id="ciLatitude" type="number" step="any" value="10.776889">
+      </div>
+      <div class="form-row">
+        <label>Longitude</label>
+        <input id="ciLongitude" type="number" step="any" value="106.700806">
+      </div>
+      <div class="form-row">
+        <label>GPS Accuracy (m)</label>
+        <input id="ciGpsAccuracy" type="number" step="any" value="15.0">
+      </div>
+      <div class="form-row">
+        <label>Ảnh check-in (JPG/PNG)</label>
+        <input id="ciPhoto" type="file" accept="image/*">
+      </div>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-ghost" onclick="doUseCurrentLocation('ci')">📡 Vị trí hiện tại</button>
+      <button class="btn btn-success" onclick="doCheckIn()" id="btnCheckIn">📍 Check-in</button>
+    </div>
+    <div id="checkInResponse"></div>
+  </div>
+</div>
+
+<!-- CHECK-OUT -->
+<div class="section" id="section-checkout">
+  <div>
+    <div class="section-title">🏁 Check-out với Passkey</div>
+    <div class="section-desc">Check-out kết hợp WebAuthn. Giống check-in nhưng gọi API check-out.</div>
+  </div>
+  <div class="card">
+    <div class="card-title">📋 Thông tin check-out</div>
+    <div class="form-grid">
+      <div class="form-row">
+        <label>Assignment ID</label>
+        <input id="coAssignmentId" type="number" placeholder="Nhập assignment ID">
+      </div>
+      <div class="form-row">
+        <label>Client Request ID (UUID)</label>
+        <input id="coClientRequestId" placeholder="Tự động sinh nếu bỏ trống">
+      </div>
+      <div class="form-row">
+        <label>Latitude</label>
+        <input id="coLatitude" type="number" step="any" value="10.776889">
+      </div>
+      <div class="form-row">
+        <label>Longitude</label>
+        <input id="coLongitude" type="number" step="any" value="106.700806">
+      </div>
+      <div class="form-row">
+        <label>GPS Accuracy (m)</label>
+        <input id="coGpsAccuracy" type="number" step="any" value="15.0">
+      </div>
+      <div class="form-row">
+        <label>Ảnh check-out (JPG/PNG)</label>
+        <input id="coPhoto" type="file" accept="image/*">
+      </div>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-ghost" onclick="doUseCurrentLocation('co')">📡 Vị trí hiện tại</button>
+      <button class="btn btn-danger" onclick="doCheckOut()" id="btnCheckOut">🏁 Check-out</button>
+    </div>
+    <div id="checkOutResponse"></div>
+  </div>
+</div>
+
+<!-- LOGS -->
+<div class="section" id="section-logs">
+  <div>
+    <div class="section-title">📋 System Logs</div>
+    <div class="section-desc">Audit logs WebAuthn: DEVICE_REGISTERED, SIGNATURE_VERIFIED, DEVICE_REMOVED...</div>
+  </div>
+  <div class="card">
+    <div class="card-title">🔍 Lọc logs</div>
+    <div class="form-grid">
+      <div class="form-row">
+        <label>Employee ID (bỏ trống = tất cả)</label>
+        <input id="logEmpId" type="number" placeholder="VD: 2">
+      </div>
+      <div class="form-row">
+        <label>Giới hạn</label>
+        <input id="logLimit" type="number" value="30">
+      </div>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-primary" onclick="loadLogs()">🔄 Tải logs</button>
+    </div>
+    <div id="logsResponse"></div>
+  </div>
+</div>
+
+</main>
+
+<script>
+var state = { token: null, fingerprint: null, username: null, role: null };
+
+function getTargetEmployeeId() {
+  if (state.role === 'admin') {
+    return document.getElementById('adminTargetEmployee').value;
+  }
+  return null;
+}
+
+function onTargetEmployeeChange() {
+  var activeSection = document.querySelector('.section.active');
+  if (activeSection && activeSection.id === 'section-devices') {
+    loadDevices();
+  }
+}
+
+function getBaseUrl() { return document.getElementById('serverUrl').value.replace(/\/$/, ''); }
+
+function genUUID() {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+    var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
+    return v.toString(16);
+  });
+}
+
+function now7() {
+  var d = new Date();
+  var off = d.getTime() + (7 * 3600000);
+  var d7 = new Date(off);
+  return d7.toISOString().replace('Z', '+07:00');
+}
+
+function b64url(buf) {
+  return btoa(String.fromCharCode.apply(null, new Uint8Array(buf)))
+    .replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
+}
+
+function b64urlDecode(str) {
+  str = str.replace(/-/g, '+').replace(/_/g, '/');
+  while (str.length % 4) str += '=';
+  return Uint8Array.from(atob(str), function(c) { return c.charCodeAt(0); });
+}
+
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function showAlert(id, type, msg) {
+  var icons = { success:'✅', error:'❌', info:'ℹ️', warning:'⚠️' };
+  document.getElementById(id).innerHTML =
+    '<div class="alert alert-' + type + '">' + icons[type] + ' ' + msg + '</div>';
+}
+
+function showResponse(id, data, prefix) {
+  var pretty = typeof data === 'string' ? data : JSON.stringify(data, null, 2);
+  var html = prefix ? '<div class="response-label">' + prefix + '</div>' : '';
+  html += '<div class="response-box">' + escHtml(pretty) + '</div>';
+  document.getElementById(id).innerHTML = html;
+}
+
+function setStep(prefix, num, total) {
+  for (var i = 1; i <= total; i++) {
+    var el = document.getElementById('step-' + prefix + '-' + i);
+    if (!el) continue;
+    el.className = 'step' + (i < num ? ' done' : i === num ? ' active' : '');
+  }
+}
+
+function showSection(name) {
+  document.querySelectorAll('.section').forEach(function(s) { s.classList.remove('active'); });
+  document.querySelectorAll('.nav-btn').forEach(function(b) { b.classList.remove('active'); });
+  document.getElementById('section-' + name).classList.add('active');
+  document.getElementById('nav-' + name).classList.add('active');
+  if (name === 'devices') loadDevices();
+}
+
+async function checkServer() {
+  try {
+    var r = await fetch(getBaseUrl() + '/api/health', { signal: AbortSignal.timeout(3000) });
+    if (r.ok) {
+      document.getElementById('serverDot').classList.add('online');
+      document.getElementById('serverStatus').textContent = 'Server online';
+    } else throw new Error();
+  } catch(e) {
+    document.getElementById('serverDot').classList.remove('online');
+    document.getElementById('serverStatus').textContent = 'Server offline';
+  }
+}
+setInterval(checkServer, 10000);
+checkServer();
+
+async function doLogin() {
+  var url = getBaseUrl();
+  var username = document.getElementById('loginUsername').value;
+  var password = document.getElementById('loginPassword').value;
+  var fingerprint = document.getElementById('loginFingerprint').value;
+  try {
+    var r = await fetch(url + '/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Device-Fingerprint': fingerprint },
+      body: JSON.stringify({ username: username, password: password })
+    });
+    var body = await r.json();
+    if (!r.ok) { showResponse('loginResponse', body, '❌ Lỗi đăng nhập'); return; }
+    state.token = body.data.accessToken;
+    state.fingerprint = body.data.deviceFingerprint || fingerprint;
+    state.username = username;
+    state.role = body.data.role || 'employee';
+    
+    document.getElementById('authBar').style.display = 'flex';
+    document.getElementById('authUser').textContent = username + ' (' + state.role + ')';
+    
+    if (state.role === 'admin') {
+      document.getElementById('adminPanel').style.display = 'flex';
+    } else {
+      document.getElementById('adminPanel').style.display = 'none';
+    }
+    
+    showResponse('loginResponse', body, '✅ Đăng nhập thành công');
+  } catch(e) {
+    showAlert('loginResponse', 'error', 'Lỗi kết nối: ' + e.message);
+  }
+}
+
+function quickLogin(type) {
+  var users = {
+    admin: { u:'admin', p:'Admin@123', f:'fingerprint_admin_01' },
+    emp01: { u:'employee01', p:'Employee@123', f:'fingerprint_emp_01' },
+    emp02: { u:'employee02', p:'Employee@123', f:'fingerprint_emp_02' }
+  };
+  var u = users[type];
+  document.getElementById('loginUsername').value = u.u;
+  document.getElementById('loginPassword').value = u.p;
+  document.getElementById('loginFingerprint').value = u.f;
+  doLogin();
+}
+
+function requireLogin(el) {
+  if (!state.token) { showAlert(el, 'warning', 'Vui lòng đăng nhập trước!'); return false; }
+  return true;
+}
+
+async function loadDevices() {
+  if (!requireLogin('deviceList')) return;
+  document.getElementById('deviceList').innerHTML = '<div class="alert alert-info"><div class="spinner"></div>&nbsp;Đang tải...</div>';
+  try {
+    var empId = getTargetEmployeeId();
+    var query = empId ? '?employeeId=' + empId : '';
+    var r = await fetch(getBaseUrl() + '/api/v1/device-biometric/credentials' + query, {
+      headers: { 'Authorization': 'Bearer ' + state.token, 'X-Device-Fingerprint': state.fingerprint }
+    });
+    var body = await r.json();
+    var devices = body.data || [];
+    document.getElementById('deviceCount').textContent = devices.length;
+    if (!devices.length) {
+      document.getElementById('deviceList').innerHTML =
+        '<div class="empty-state"><div class="empty-icon">🔐</div>Chưa có thiết bị nào được đăng ký.</div>';
+      return;
+    }
+    document.getElementById('deviceList').innerHTML = '<div class="device-list">' + devices.map(function(d) {
+      var safeId = d.credential_id;
+      return '<div class="device-card"><div class="device-icon">🔑</div>' +
+        '<div class="device-info"><div class="device-name">' + escHtml(d.credential_device_name || 'Không tên') + '</div>' +
+        '<div class="device-id">' + escHtml(safeId) + '</div>' +
+        '<div class="device-date">Đăng ký: ' + new Date(d.created_at).toLocaleString('vi-VN') + '</div></div>' +
+        '<div style="display:flex;gap:8px;align-items:center">' +
+        '<span class="badge badge-green">Hoạt động</span>' +
+        '<button class="btn btn-danger" style="padding:6px 12px;font-size:12px" onclick="deleteDevice(\'' + escHtml(safeId).replace(/'/g,"\\'") + '\')">🗑️ Xóa</button>' +
+        '</div></div>';
+    }).join('') + '</div>';
+  } catch(e) {
+    showAlert('deviceList', 'error', 'Lỗi: ' + e.message);
+  }
+}
+
+async function deleteDevice(credId) {
+  if (!confirm('Xóa thiết bị "' + credId + '"?\nHành động này không thể hoàn tác.')) return;
+  try {
+    var empId = getTargetEmployeeId();
+    var query = empId ? '?employeeId=' + empId : '';
+    var r = await fetch(getBaseUrl() + '/api/v1/device-biometric/credentials/' + encodeURIComponent(credId) + query, {
+      method: 'DELETE',
+      headers: { 'Authorization': 'Bearer ' + state.token, 'X-Device-Fingerprint': state.fingerprint }
+    });
+    var body = await r.json();
+    if (r.ok) { showAlert('deviceList', 'success', 'Đã xóa thiết bị thành công!'); setTimeout(loadDevices, 800); }
+    else showAlert('deviceList', 'error', body.message || 'Xóa thất bại');
+  } catch(e) { showAlert('deviceList', 'error', e.message); }
+}
+
+async function doRegister() {
+  if (!requireLogin('registerResponse')) return;
+  if (!window.PublicKeyCredential) { showAlert('registerResponse', 'error', 'Trình duyệt không hỗ trợ WebAuthn!'); return; }
+  var deviceName = document.getElementById('regDeviceName').value || 'Thiết bị không tên';
+  var btn = document.getElementById('btnRegister');
+  btn.disabled = true;
+  document.getElementById('registerResponse').innerHTML = '';
+  setStep('reg', 1, 3);
+  try {
+    showAlert('registerResponse', 'info', 'Bước 1: Đang tạo challenge từ server...');
+    var attachment = document.getElementById('regAttachment').value;
+    var empId = getTargetEmployeeId();
+    var payload = { attachment: attachment };
+    if (empId) payload.employeeId = empId;
+    var r1 = await fetch(getBaseUrl() + '/api/v1/device-biometric/registration/options', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + state.token,
+        'X-Device-Fingerprint': state.fingerprint
+      },
+      body: JSON.stringify(payload)
+    });
+    var opts = await r1.json();
+    if (!r1.ok) { showResponse('registerResponse', opts, '❌ Lỗi bước 1'); return; }
+
+    setStep('reg', 2, 3);
+    showAlert('registerResponse', 'info', 'Bước 2: Trình duyệt đang yêu cầu sinh trắc học...');
+
+    var createOpts = opts.data;
+    createOpts.challenge = b64urlDecode(createOpts.challenge);
+    createOpts.user.id = b64urlDecode(createOpts.user.id);
+    if (createOpts.excludeCredentials) {
+      createOpts.excludeCredentials = createOpts.excludeCredentials.map(function(c) {
+        return Object.assign({}, c, { id: b64urlDecode(c.id) });
+      });
+    }
+
+    var credential;
+    try {
+      credential = await navigator.credentials.create({ publicKey: createOpts });
+    } catch(e) {
+      showAlert('registerResponse', 'warning', 'Người dùng hủy hoặc thiết bị không hỗ trợ: ' + e.message);
+      setStep('reg', 1, 3); return;
+    }
+
+    setStep('reg', 3, 3);
+    showAlert('registerResponse', 'info', 'Bước 3: Đang gửi credential lên server...');
+
+    var regResponse = {
+      id: credential.id,
+      rawId: b64url(credential.rawId),
+      type: credential.type,
+      response: {
+        clientDataJSON: b64url(credential.response.clientDataJSON),
+        attestationObject: b64url(credential.response.attestationObject)
+      },
+      clientExtensionResults: credential.getClientExtensionResults()
+    };
+
+    var empId = getTargetEmployeeId();
+    var verifyPayload = { registrationResponse: regResponse, deviceName: deviceName };
+    if (empId) verifyPayload.employeeId = empId;
+    var r3 = await fetch(getBaseUrl() + '/api/v1/device-biometric/registration/verification', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + state.token, 'X-Device-Fingerprint': state.fingerprint },
+      body: JSON.stringify(verifyPayload)
+    });
+    var result = await r3.json();
+    if (r3.ok) {
+      document.getElementById('registerResponse').innerHTML =
+        '<div class="alert alert-success">✅ Đăng ký Passkey thành công! Thiết bị "' + escHtml(deviceName) + '" đã được lưu.</div>' +
+        '<div class="response-label">Server response</div><div class="response-box">' + escHtml(JSON.stringify(result, null, 2)) + '</div>';
+      setTimeout(loadDevices, 1000);
+    } else { showResponse('registerResponse', result, '❌ Lỗi bước 3'); }
+  } catch(e) { showAlert('registerResponse', 'error', 'Lỗi: ' + e.message); }
+  finally { btn.disabled = false; }
+}
+
+async function doAuthenticate() {
+  if (!requireLogin('authResponse')) return;
+  if (!window.PublicKeyCredential) { showAlert('authResponse', 'error', 'Trình duyệt không hỗ trợ WebAuthn!'); return; }
+  var btn = document.getElementById('btnAuthenticate');
+  btn.disabled = true;
+  document.getElementById('authResponse').innerHTML = '';
+  setStep('auth', 1, 3);
+  try {
+    showAlert('authResponse', 'info', 'Bước 1: Đang tạo challenge...');
+    var r1 = await fetch(getBaseUrl() + '/api/v1/device-biometric/authentication/options', {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + state.token, 'X-Device-Fingerprint': state.fingerprint }
+    });
+    var opts = await r1.json();
+    if (!r1.ok) { showResponse('authResponse', opts, '❌ Lỗi bước 1'); return; }
+
+    setStep('auth', 2, 3);
+    showAlert('authResponse', 'info', 'Bước 2: Trình duyệt đang yêu cầu xác thực...');
+
+    var getOpts = opts.data;
+    getOpts.challenge = b64urlDecode(getOpts.challenge);
+    if (getOpts.allowCredentials) {
+      getOpts.allowCredentials = getOpts.allowCredentials.map(function(c) {
+        return Object.assign({}, c, { id: b64urlDecode(c.id) });
+      });
+    }
+
+    var assertion;
+    try {
+      assertion = await navigator.credentials.get({ publicKey: getOpts });
+    } catch(e) {
+      showAlert('authResponse', 'warning', 'Người dùng hủy: ' + e.message);
+      setStep('auth', 1, 3); return;
+    }
+
+    setStep('auth', 3, 3);
+    showAlert('authResponse', 'info', 'Bước 3: Đang xác minh với server...');
+
+    var authResponse = {
+      id: assertion.id, rawId: b64url(assertion.rawId), type: assertion.type,
+      response: {
+        clientDataJSON: b64url(assertion.response.clientDataJSON),
+        authenticatorData: b64url(assertion.response.authenticatorData),
+        signature: b64url(assertion.response.signature),
+        userHandle: assertion.response.userHandle ? b64url(assertion.response.userHandle) : null
+      }
+    };
+
+    var r3 = await fetch(getBaseUrl() + '/api/v1/device-biometric/authentication/verification', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + state.token, 'X-Device-Fingerprint': state.fingerprint },
+      body: JSON.stringify({ authenticationResponse: authResponse })
+    });
+    var result = await r3.json();
+    if (r3.ok) {
+      document.getElementById('authResponse').innerHTML =
+        '<div class="alert alert-success">✅ Xác thực thiết bị thành công!</div>' +
+        '<div class="response-label">Server response</div><div class="response-box">' + escHtml(JSON.stringify(result, null, 2)) + '</div>';
+    } else { showResponse('authResponse', result, '❌ Xác thực thất bại'); }
+  } catch(e) { showAlert('authResponse', 'error', 'Lỗi: ' + e.message); }
+  finally { btn.disabled = false; }
+}
+
+async function getWebAuthnAssertion() {
+  var r1 = await fetch(getBaseUrl() + '/api/v1/device-biometric/authentication/options', {
+    method: 'POST',
+    headers: { 'Authorization': 'Bearer ' + state.token, 'X-Device-Fingerprint': state.fingerprint }
+  });
+  var opts = await r1.json();
+  if (!r1.ok) throw new Error(opts.message || 'Không thể tạo challenge');
+  var getOpts = opts.data;
+  getOpts.challenge = b64urlDecode(getOpts.challenge);
+  if (getOpts.allowCredentials) {
+    getOpts.allowCredentials = getOpts.allowCredentials.map(function(c) {
+      return Object.assign({}, c, { id: b64urlDecode(c.id) });
+    });
+  }
+  var assertion = await navigator.credentials.get({ publicKey: getOpts });
+  return {
+    id: assertion.id, rawId: b64url(assertion.rawId), type: assertion.type,
+    response: {
+      clientDataJSON: b64url(assertion.response.clientDataJSON),
+      authenticatorData: b64url(assertion.response.authenticatorData),
+      signature: b64url(assertion.response.signature),
+      userHandle: assertion.response.userHandle ? b64url(assertion.response.userHandle) : null
+    }
+  };
+}
+
+async function doCheckIn() {
+  if (!requireLogin('checkInResponse')) return;
+  var assignId = document.getElementById('ciAssignmentId').value;
+  if (!assignId) { showAlert('checkInResponse', 'warning', 'Vui lòng nhập Assignment ID!'); return; }
+  var photoFile = document.getElementById('ciPhoto').files[0];
+  if (!photoFile) { showAlert('checkInResponse', 'warning', 'Vui lòng chọn ảnh check-in!'); return; }
+  var btn = document.getElementById('btnCheckIn');
+  btn.disabled = true;
+  document.getElementById('checkInResponse').innerHTML = '';
+  try {
+    showAlert('checkInResponse', 'info', 'Đang tạo WebAuthn challenge & yêu cầu sinh trắc học...');
+    var deviceAuth = null;
+    try {
+      deviceAuth = await getWebAuthnAssertion();
+    } catch(e) {
+      if (e.name === 'NotAllowedError') { showAlert('checkInResponse', 'warning', 'Người dùng hủy xác thực.'); return; }
+      showAlert('checkInResponse', 'warning', 'Không thể lấy WebAuthn: ' + e.message + '. Thử không có deviceAuth...');
+    }
+    showAlert('checkInResponse', 'info', 'Đang gửi yêu cầu check-in...');
+    var clientRequestId = document.getElementById('ciClientRequestId').value || genUUID();
+    var fd = new FormData();
+    fd.append('assignmentId', assignId);
+    fd.append('latitude', document.getElementById('ciLatitude').value);
+    fd.append('longitude', document.getElementById('ciLongitude').value);
+    fd.append('gpsAccuracy', document.getElementById('ciGpsAccuracy').value);
+    fd.append('capturedAtClient', now7());
+    fd.append('clientRequestId', clientRequestId);
+    fd.append('isPwaStandalone', '1');
+    fd.append('photo', photoFile, photoFile.name);
+    if (deviceAuth) {
+      fd.append('deviceAuth[id]', deviceAuth.id);
+      fd.append('deviceAuth[type]', deviceAuth.type);
+      fd.append('deviceAuth[response][clientDataJSON]', deviceAuth.response.clientDataJSON);
+      fd.append('deviceAuth[response][authenticatorData]', deviceAuth.response.authenticatorData);
+      fd.append('deviceAuth[response][signature]', deviceAuth.response.signature);
+      if (deviceAuth.response.userHandle) fd.append('deviceAuth[response][userHandle]', deviceAuth.response.userHandle);
+    }
+    var r = await fetch(getBaseUrl() + '/api/attendance/check-in', {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + state.token, 'X-Device-Fingerprint': state.fingerprint },
+      body: fd
+    });
+    var result = await r.json();
+    if (r.ok) {
+      document.getElementById('checkInResponse').innerHTML =
+        '<div class="alert alert-success">✅ Check-in thành công! ' + (deviceAuth ? '(Đã xác thực WebAuthn ✅)' : '') + '</div>' +
+        '<div class="response-label">Server response</div><div class="response-box">' + escHtml(JSON.stringify(result, null, 2)) + '</div>';
+    } else { showResponse('checkInResponse', result, '❌ Check-in thất bại'); }
+  } catch(e) { showAlert('checkInResponse', 'error', 'Lỗi: ' + e.message); }
+  finally { btn.disabled = false; }
+}
+
+async function doCheckOut() {
+  if (!requireLogin('checkOutResponse')) return;
+  var assignId = document.getElementById('coAssignmentId').value;
+  if (!assignId) { showAlert('checkOutResponse', 'warning', 'Vui lòng nhập Assignment ID!'); return; }
+  var photoFile = document.getElementById('coPhoto').files[0];
+  if (!photoFile) { showAlert('checkOutResponse', 'warning', 'Vui lòng chọn ảnh check-out!'); return; }
+  var btn = document.getElementById('btnCheckOut');
+  btn.disabled = true;
+  document.getElementById('checkOutResponse').innerHTML = '';
+  try {
+    showAlert('checkOutResponse', 'info', 'Đang tạo WebAuthn challenge & yêu cầu sinh trắc học...');
+    var deviceAuth = null;
+    try {
+      deviceAuth = await getWebAuthnAssertion();
+    } catch(e) {
+      if (e.name === 'NotAllowedError') { showAlert('checkOutResponse', 'warning', 'Người dùng hủy xác thực.'); return; }
+      showAlert('checkOutResponse', 'warning', 'Không thể lấy WebAuthn: ' + e.message);
+    }
+    showAlert('checkOutResponse', 'info', 'Đang gửi yêu cầu check-out...');
+    var clientRequestId = document.getElementById('coClientRequestId').value || genUUID();
+    var fd = new FormData();
+    fd.append('assignmentId', assignId);
+    fd.append('latitude', document.getElementById('coLatitude').value);
+    fd.append('longitude', document.getElementById('coLongitude').value);
+    fd.append('gpsAccuracy', document.getElementById('coGpsAccuracy').value);
+    fd.append('capturedAtClient', now7());
+    fd.append('clientRequestId', clientRequestId);
+    fd.append('isPwaStandalone', '1');
+    fd.append('photo', photoFile, photoFile.name);
+    if (deviceAuth) {
+      fd.append('deviceAuth[id]', deviceAuth.id);
+      fd.append('deviceAuth[type]', deviceAuth.type);
+      fd.append('deviceAuth[response][clientDataJSON]', deviceAuth.response.clientDataJSON);
+      fd.append('deviceAuth[response][authenticatorData]', deviceAuth.response.authenticatorData);
+      fd.append('deviceAuth[response][signature]', deviceAuth.response.signature);
+      if (deviceAuth.response.userHandle) fd.append('deviceAuth[response][userHandle]', deviceAuth.response.userHandle);
+    }
+    var r = await fetch(getBaseUrl() + '/api/attendance/check-out', {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + state.token, 'X-Device-Fingerprint': state.fingerprint },
+      body: fd
+    });
+    var result = await r.json();
+    if (r.ok) {
+      document.getElementById('checkOutResponse').innerHTML =
+        '<div class="alert alert-success">✅ Check-out thành công! ' + (deviceAuth ? '(Đã xác thực WebAuthn ✅)' : '') + '</div>' +
+        '<div class="response-label">Server response</div><div class="response-box">' + escHtml(JSON.stringify(result, null, 2)) + '</div>';
+    } else { showResponse('checkOutResponse', result, '❌ Check-out thất bại'); }
+  } catch(e) { showAlert('checkOutResponse', 'error', 'Lỗi: ' + e.message); }
+  finally { btn.disabled = false; }
+}
+
+function doUseCurrentLocation(prefix) {
+  navigator.geolocation.getCurrentPosition(function(pos) {
+    document.getElementById(prefix + 'Latitude').value = pos.coords.latitude;
+    document.getElementById(prefix + 'Longitude').value = pos.coords.longitude;
+    document.getElementById(prefix + 'GpsAccuracy').value = Math.round(pos.coords.accuracy);
+  }, function() { alert('Không lấy được vị trí GPS. Vui lòng nhập thủ công.'); });
+}
+
+async function loadLogs() {
+  if (!requireLogin('logsResponse')) return;
+  var empId = document.getElementById('logEmpId').value;
+  var limit = document.getElementById('logLimit').value || 30;
+  var url = getBaseUrl() + '/api/admin/system-logs?limit=' + limit;
+  if (empId) url += '&employeeId=' + empId;
+  showAlert('logsResponse', 'info', 'Đang tải...');
+  try {
+    var r = await fetch(url, {
+      headers: { 'Authorization': 'Bearer ' + state.token, 'X-Device-Fingerprint': state.fingerprint }
+    });
+    var body = await r.json();
+    if (!r.ok) { showResponse('logsResponse', body, '❌ Lỗi'); return; }
+    var logs = body.data || [];
+    if (Array.isArray(body.data) === false && body.data && body.data.logs) logs = body.data.logs;
+    if (!logs.length) { showAlert('logsResponse', 'info', 'Không có logs nào.'); return; }
+    var waBadge = {
+      DEVICE_REGISTERED:'badge-green', SIGNATURE_VERIFIED:'badge-blue',
+      DEVICE_REMOVED:'badge-red', WEBAUTHN_REGISTER_FAILED:'badge-red',
+      WEBAUTHN_AUTHENTICATE_FAILED:'badge-red'
+    };
+    var waActions = Object.keys(waBadge).concat(['CHALLENGE_GENERATED']);
+    var rows = logs.map(function(l) {
+      var isWA = waActions.indexOf(l.action) > -1;
+      var cls = waBadge[l.action] || 'badge-purple';
+      return '<div class="device-card" style="' + (isWA ? 'border-color:rgba(88,166,255,0.3)' : '') + '">' +
+        '<div style="flex:1;min-width:0">' +
+        '<div style="display:flex;gap:8px;align-items:center;margin-bottom:4px">' +
+        '<span class="badge ' + cls + '">' + escHtml(l.action) + '</span>' +
+        '<span style="font-size:11px;color:var(--text-muted)">' + new Date(l.action_time).toLocaleString('vi-VN') + '</span>' +
+        '</div>' +
+        '<div style="font-size:12px;color:var(--text-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + escHtml(l.description || '') + '</div>' +
+        '</div>' +
+        '<span class="badge ' + (l.status==='SUCCESS'?'badge-green':'badge-red') + '">' + escHtml(l.status) + '</span>' +
+        '</div>';
+    }).join('');
+    document.getElementById('logsResponse').innerHTML = '<div class="device-list">' + rows + '</div>';
+  } catch(e) { showAlert('logsResponse', 'error', e.message); }
+}
+
+// ============================================================
+// FILE:// ORIGIN DETECTION & SERVER URL AUTO-SETUP
+// ============================================================
+(function() {
+  if (window.location.protocol === 'file:') {
+    document.getElementById('fileOriginBanner').style.display = 'block';
+    // Push body down so banner doesn't cover content
+    document.body.style.paddingTop = '80px';
+  } else {
+    var serverUrlInput = document.getElementById('serverUrl');
+    if (serverUrlInput) {
+      serverUrlInput.value = window.location.origin;
+    }
+  }
+})();
+</script>
+</body>
+</html>
