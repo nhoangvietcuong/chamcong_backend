@@ -273,7 +273,7 @@ class AttendanceOvertimeService {
         }
       }
 
-      const needsAdminReview = isExplicitFailed || (faceVerifyResult && !faceVerifyResult.success) || riskLevel === 'NO_GPS' || riskLevel === 'HIGH' || riskLevel === 'MEDIUM';
+      const needsAdminReview = isExplicitFailed || (faceVerifyResult && !faceVerifyResult.success) || riskLevel === 'NO_GPS' || riskLevel === 'HIGH';
 
       // Liveness Detection
       let livenessResult;
@@ -474,7 +474,7 @@ class AttendanceOvertimeService {
         }
       }
 
-      const needsAdminReview = isExplicitFailed || (faceVerifyResult && !faceVerifyResult.success) || riskLevel === 'NO_GPS' || riskLevel === 'HIGH' || riskLevel === 'MEDIUM';
+      const needsAdminReview = isExplicitFailed || (faceVerifyResult && !faceVerifyResult.success) || riskLevel === 'NO_GPS' || riskLevel === 'HIGH';
 
       // Liveness Detection
       let livenessResult;

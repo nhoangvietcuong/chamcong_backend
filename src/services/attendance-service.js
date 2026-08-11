@@ -479,8 +479,7 @@ class AttendanceService {
         const needsAdminReview = (body.faceVerifyFailed === 'true' || body.faceVerifyFailed === true) ||
           (faceVerifyResult && !faceVerifyResult.success) ||
           riskLevel === 'NO_GPS' ||
-          riskLevel === 'HIGH' ||
-          riskLevel === 'MEDIUM';
+          riskLevel === 'HIGH';
 
         console.time(`${perfLabel} 4. DB Record Creation`);
         // Perform Device Biometric verification check
@@ -1060,8 +1059,7 @@ class AttendanceService {
         const needsAdminReview = (body.faceVerifyFailed === 'true' || body.faceVerifyFailed === true) ||
           (faceVerifyResult && !faceVerifyResult.success) ||
           riskLevel === 'NO_GPS' ||
-          riskLevel === 'HIGH' ||
-          riskLevel === 'MEDIUM';
+          riskLevel === 'HIGH';
 
         console.time(`${perfLabel} 4. DB Record Creation`);
         // Perform Device Biometric verification check

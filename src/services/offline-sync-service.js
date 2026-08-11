@@ -255,7 +255,7 @@ class OfflineSyncService {
           record = res.rows[0];
         } else {
           // Update existing check-in row
-          const finalAttendanceStatus = (riskLevel === 'NO_GPS' || riskLevel === 'HIGH' || riskLevel === 'MEDIUM') ? 'REVIEW_REQUIRED' : 'COMPLETED';
+          const finalAttendanceStatus = (riskLevel === 'NO_GPS' || riskLevel === 'HIGH') ? 'REVIEW_REQUIRED' : 'COMPLETED';
           const res = await client.query(`
             UPDATE public.attendance
             SET
