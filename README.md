@@ -77,16 +77,6 @@ DB_PORT=5432
 DB_NAME=CHAM_CONG
 DB_USER=postgres
 DB_PASSWORD=your_password
-
-# Authentication Config
-JWT_ACCESS_SECRET=your_jwt_access_secret_key
-JWT_ACCESS_EXPIRES_IN=15m
-REFRESH_TOKEN_EXPIRES_DAYS=30
-REFRESH_TOKEN_HASH_SECRET=your_refresh_token_hash_secret
-BCRYPT_SALT_ROUNDS=12
-
-# Geofence & Location Config
-MAX_GPS_ACCURACY_METERS=100
 ```
 
 ### 4. Khởi tạo dữ liệu mẫu (Seed Data)
