@@ -94,7 +94,7 @@ class DashboardController {
           COUNT(a.attendance_id)::int as present
         FROM public.employee_work_assignments ewa
         LEFT JOIN public.attendance a ON ewa.assignment_id = a.assignment_id AND a.attendance_status != 'IN_PROGRESS'
-        JOIN public.work_locations wl ON ewa.location_id = wl.location_id
+        JOIN public.work_locations wl ON COALESCE(a.actual_check_in_location_id, a.matched_location_id, ewa.location_id) = wl.location_id
         WHERE ewa.work_date = CURRENT_DATE
         GROUP BY wl.location_name
       `);

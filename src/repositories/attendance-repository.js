@@ -222,7 +222,7 @@ class AttendanceRepository {
         wl.address as location_address
       FROM public.attendance a
       JOIN public.employee_work_assignments ewa ON a.assignment_id = ewa.assignment_id
-      JOIN public.work_locations wl ON ewa.location_id = wl.location_id
+      JOIN public.work_locations wl ON COALESCE(a.actual_check_in_location_id, a.matched_location_id, ewa.location_id) = wl.location_id
       WHERE a.employee_id = $1
     `;
 
@@ -356,7 +356,7 @@ class AttendanceRepository {
       JOIN public.employees e ON a.employee_id = e.employee_id
       JOIN public.departments d ON e.department_id = d.department_id
       JOIN public.employee_work_assignments ewa ON a.assignment_id = ewa.assignment_id
-      JOIN public.work_locations wl ON ewa.location_id = wl.location_id
+      JOIN public.work_locations wl ON COALESCE(a.actual_check_in_location_id, a.matched_location_id, ewa.location_id) = wl.location_id
     `;
 
     let countQuery = `
@@ -391,7 +391,7 @@ class AttendanceRepository {
 
     if (locationId) {
       queryParams.push(locationId);
-      whereClauses.push(`ewa.location_id = $${queryParams.length}`);
+      whereClauses.push(`COALESCE(a.actual_check_in_location_id, a.matched_location_id, ewa.location_id) = $${queryParams.length}`);
     }
 
     if (attendanceStatus) {
@@ -523,7 +523,7 @@ class AttendanceRepository {
     }
     if (locationId) {
       params.push(parseInt(locationId, 10));
-      where += ` AND ewa.location_id = $${params.length}`;
+      where += ` AND COALESCE(a.actual_check_in_location_id, a.matched_location_id, ewa.location_id) = $${params.length}`;
     }
 
     const countParams = [...params];
@@ -575,7 +575,7 @@ class AttendanceRepository {
       JOIN public.employees e ON a.employee_id = e.employee_id
       JOIN public.departments d ON e.department_id = d.department_id
       JOIN public.employee_work_assignments ewa ON a.assignment_id = ewa.assignment_id
-      JOIN public.work_locations wl ON ewa.location_id = wl.location_id
+      JOIN public.work_locations wl ON COALESCE(a.actual_check_in_location_id, a.matched_location_id, ewa.location_id) = wl.location_id
       ${where}
       ORDER BY a.risk_level DESC, a.check_in_time DESC
       LIMIT $${params.length - 1} OFFSET $${params.length}
@@ -600,7 +600,7 @@ if (departmentId) {
 }
 if (locationId) {
   params.push(parseInt(locationId, 10));
-  where += ` AND ewa.location_id = $${params.length}`;
+  where += ` AND COALESCE(a.actual_check_in_location_id, a.matched_location_id, ewa.location_id) = $${params.length}`;
 }
 
 const countParams = [...params];
@@ -638,7 +638,7 @@ const dataRes = await dbClient.query(`
       JOIN public.employees e ON a.employee_id = e.employee_id
       JOIN public.departments d ON e.department_id = d.department_id
       JOIN public.employee_work_assignments ewa ON a.assignment_id = ewa.assignment_id
-      JOIN public.work_locations wl ON ewa.location_id = wl.location_id
+      JOIN public.work_locations wl ON COALESCE(a.actual_check_in_location_id, a.matched_location_id, ewa.location_id) = wl.location_id
       ${where}
       ORDER BY a.created_at DESC
       LIMIT $${params.length - 1} OFFSET $${params.length}
@@ -663,7 +663,7 @@ return {
       JOIN public.employees e ON a.employee_id = e.employee_id
       JOIN public.departments d ON e.department_id = d.department_id
       JOIN public.employee_work_assignments ewa ON a.assignment_id = ewa.assignment_id
-      JOIN public.work_locations wl ON ewa.location_id = wl.location_id
+      JOIN public.work_locations wl ON COALESCE(a.actual_check_in_location_id, a.matched_location_id, ewa.location_id) = wl.location_id
       WHERE a.attendance_id = $1 AND a.is_offline_sync = 1
       LIMIT 1;
     `;

@@ -103,7 +103,7 @@ class ReportRepository {
         COUNT(*) FILTER (WHERE a.is_offline_sync = 1)::int              AS offline_sync
       FROM public.attendance a
       JOIN public.employee_work_assignments ewa ON a.assignment_id = ewa.assignment_id
-      JOIN public.work_locations wl ON ewa.location_id = wl.location_id
+      JOIN public.work_locations wl ON COALESCE(a.actual_check_in_location_id, a.matched_location_id, ewa.location_id) = wl.location_id
       WHERE 1=1 ${dateWhere}
       GROUP BY wl.location_id, wl.location_name
       ORDER BY total DESC
