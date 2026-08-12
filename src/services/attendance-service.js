@@ -7,6 +7,7 @@ const systemLogRepository = require('../repositories/system-log-repository');
 const fileStorageService = require('./file-storage-service');
 const locationValidationService = require('./location-validation-service');
 const fs = require('fs');
+const systemSettingsInMemory = require('../config/system-settings');
 const faceAiConfig = require('../modules/face-recognition/config/face-ai-config');
 const faceProfileRepository = require('../modules/face-recognition/repositories/face-profile-repository');
 const identityVerificationService = require('../modules/face-recognition/services/identity-verification.service');
@@ -55,6 +56,7 @@ class AttendanceService {
       targetLatitude,
       targetLongitude,
       appliedRadiusMeter,
+      appliedBufferMeter,
       distanceMeter,
       deviceFingerprint,
       isPwaStandalone,
@@ -98,6 +100,7 @@ class AttendanceService {
         targetLatitude,
         targetLongitude,
         appliedRadiusMeter,
+        appliedBufferMeter,
         distanceMeter,
         deviceFingerprint,
         isPwaStandalone,
@@ -301,6 +304,13 @@ class AttendanceService {
         // 7. Validate distance using locationValidationService
         let foundMatch = false;
         let locVal = null;
+        let isBufferMatch = false;
+        
+        let bestBufferVal = null;
+        let bestBufferLocation = null;
+        let bestBufferIsCompany = false;
+
+        const geofenceBufferMeter = systemSettingsInMemory.geofenceBufferMeter || 0;
 
         for (const loc of activeAllowedLocations) {
           const val = locationValidationService.validateLocation({
@@ -309,6 +319,7 @@ class AttendanceService {
             targetLatitude: loc.latitude,
             targetLongitude: loc.longitude,
             allowedRadiusMeter: loc.allowedRadiusMeter || loc.allowed_radius_meter,
+            geofenceBufferMeter,
             gpsAccuracy: parsedAccuracy,
             isPwaStandalone: parsedPwa,
             deviceFingerprintMatched: true,
@@ -319,6 +330,12 @@ class AttendanceService {
             targetLocation = loc;
             foundMatch = true;
             break;
+          } else if (val.isInsideBuffer) {
+            if (!bestBufferVal || val.distanceMeter < bestBufferVal.distanceMeter) {
+              bestBufferVal = val;
+              bestBufferLocation = loc;
+              bestBufferIsCompany = loc.isCompanyLocation === true;
+            }
           }
         }
 
@@ -336,6 +353,7 @@ class AttendanceService {
               targetLatitude: companyLoc.latitude,
               targetLongitude: companyLoc.longitude,
               allowedRadiusMeter: companyLoc.allowedRadiusMeter || companyLoc.allowed_radius_meter,
+              geofenceBufferMeter,
               gpsAccuracy: parsedAccuracy,
               isPwaStandalone: parsedPwa,
               deviceFingerprintMatched: true,
@@ -349,11 +367,28 @@ class AttendanceService {
               foundCompanyMatch = true;
               foundMatch = true;
               break;
+            } else if (compLocVal.isInsideBuffer) {
+              if (!bestBufferVal || compLocVal.distanceMeter < bestBufferVal.distanceMeter) {
+                bestBufferVal = compLocVal;
+                bestBufferLocation = companyLoc;
+                bestBufferIsCompany = true;
+              }
             }
           }
 
           if (!foundCompanyMatch) {
-            throw new BadRequestError('Bạn đang ở ngoài bán kính chấm công cho phép', ERROR_CODE.OUTSIDE_ALLOWED_RADIUS);
+            if (bestBufferVal) {
+              locVal = bestBufferVal;
+              targetLocation = bestBufferLocation;
+              isCompanyLocation = bestBufferIsCompany;
+              if (bestBufferIsCompany && !activeAllowedLocations.some(l => l.locationId === bestBufferLocation.locationId)) {
+                 isCheckInAtCompanyLocationInsteadOfAssigned = true;
+              }
+              foundMatch = true;
+              isBufferMatch = true;
+            } else {
+              throw new BadRequestError('Bạn đang ở ngoài bán kính chấm công cho phép', ERROR_CODE.OUTSIDE_ALLOWED_RADIUS);
+            }
           }
         }
 
@@ -479,7 +514,8 @@ class AttendanceService {
         const needsAdminReview = (body.faceVerifyFailed === 'true' || body.faceVerifyFailed === true) ||
           (faceVerifyResult && !faceVerifyResult.success) ||
           riskLevel === 'NO_GPS' ||
-          riskLevel === 'HIGH';
+          riskLevel === 'HIGH' ||
+          riskLevel === 'GEOFENCE_BUFFER';
 
         console.time(`${perfLabel} 4. DB Record Creation`);
         // Perform Device Biometric verification check
@@ -586,6 +622,7 @@ class AttendanceService {
           targetLatitude: targetLocation.latitude,
           targetLongitude: targetLocation.longitude,
           appliedRadiusMeter: targetLocation.allowedRadiusMeter,
+          appliedBufferMeter: systemSettingsInMemory.geofenceBufferMeter || 0,
           distanceMeter,
           deviceFingerprint,
           isPwaStandalone: parsedPwa,
@@ -712,6 +749,7 @@ class AttendanceService {
           targetLatitude: targetLocation ? targetLocation.latitude : null,
           targetLongitude: targetLocation ? targetLocation.longitude : null,
           appliedRadiusMeter: targetLocation ? targetLocation.allowedRadiusMeter : null,
+          appliedBufferMeter: systemSettingsInMemory.geofenceBufferMeter || 0,
           distanceMeter,
           deviceFingerprint,
           isPwaStandalone: parsedPwa,
@@ -863,18 +901,29 @@ class AttendanceService {
           }
 
           // 7. Validate distance
+          const geofenceBufferMeter = systemSettingsInMemory.geofenceBufferMeter || 0;
+          let bestBufferVal = null;
+          let bestBufferLocation = null;
+          let isBufferMatch = false;
+
           let locVal = locationValidationService.validateLocation({
             employeeLatitude: parsedLat,
             employeeLongitude: parsedLng,
             targetLatitude: targetLocation.latitude,
             targetLongitude: targetLocation.longitude,
             allowedRadiusMeter: targetLocation.allowedRadiusMeter || targetLocation.allowed_radius_meter,
+            geofenceBufferMeter,
             gpsAccuracy: parsedAccuracy,
             isPwaStandalone: parsedPwa,
             deviceFingerprintMatched: true,
           });
 
           if (!locVal.isInsideRadius) {
+            if (locVal.isInsideBuffer) {
+               bestBufferVal = locVal;
+               bestBufferLocation = targetLocation;
+            }
+
             let foundMatch = false;
 
             // Try all allowed locations for this assignment
@@ -892,6 +941,7 @@ class AttendanceService {
                 targetLatitude: loc.latitude,
                 targetLongitude: loc.longitude,
                 allowedRadiusMeter: loc.allowedRadiusMeter || loc.allowed_radius_meter,
+                geofenceBufferMeter,
                 gpsAccuracy: parsedAccuracy,
                 isPwaStandalone: parsedPwa,
                 deviceFingerprintMatched: true,
@@ -902,6 +952,11 @@ class AttendanceService {
                 targetLocation = loc;
                 foundMatch = true;
                 break;
+              } else if (val.isInsideBuffer) {
+                if (!bestBufferVal || val.distanceMeter < bestBufferVal.distanceMeter) {
+                  bestBufferVal = val;
+                  bestBufferLocation = loc;
+                }
               }
             }
 
@@ -917,6 +972,7 @@ class AttendanceService {
                   targetLatitude: companyLoc.latitude,
                   targetLongitude: companyLoc.longitude,
                   allowedRadiusMeter: companyLoc.allowedRadiusMeter || companyLoc.allowed_radius_meter,
+                  geofenceBufferMeter,
                   gpsAccuracy: parsedAccuracy,
                   isPwaStandalone: parsedPwa,
                   deviceFingerprintMatched: true,
@@ -927,12 +983,24 @@ class AttendanceService {
                   targetLocation = companyLoc;
                   foundMatch = true;
                   break;
+                } else if (compLocVal.isInsideBuffer) {
+                  if (!bestBufferVal || compLocVal.distanceMeter < bestBufferVal.distanceMeter) {
+                    bestBufferVal = compLocVal;
+                    bestBufferLocation = companyLoc;
+                  }
                 }
               }
             }
 
             if (!foundMatch) {
-              throw new BadRequestError('Bạn đang ở ngoài bán kính chấm công cho phép', ERROR_CODE.OUTSIDE_ALLOWED_RADIUS);
+              if (bestBufferVal) {
+                 locVal = bestBufferVal;
+                 targetLocation = bestBufferLocation;
+                 foundMatch = true;
+                 isBufferMatch = true;
+              } else {
+                 throw new BadRequestError('Bạn đang ở ngoài bán kính chấm công cho phép', ERROR_CODE.OUTSIDE_ALLOWED_RADIUS);
+              }
             }
           }
 
@@ -1059,7 +1127,8 @@ class AttendanceService {
         const needsAdminReview = (body.faceVerifyFailed === 'true' || body.faceVerifyFailed === true) ||
           (faceVerifyResult && !faceVerifyResult.success) ||
           riskLevel === 'NO_GPS' ||
-          riskLevel === 'HIGH';
+          riskLevel === 'HIGH' ||
+          riskLevel === 'GEOFENCE_BUFFER';
 
         console.time(`${perfLabel} 4. DB Record Creation`);
         // Perform Device Biometric verification check
@@ -1179,6 +1248,7 @@ class AttendanceService {
           targetLatitude: targetLocation.latitude,
           targetLongitude: targetLocation.longitude,
           appliedRadiusMeter: targetLocation.allowedRadiusMeter,
+          appliedBufferMeter: systemSettingsInMemory.geofenceBufferMeter || 0,
           distanceMeter,
           deviceFingerprint,
           isPwaStandalone: parsedPwa,
@@ -1267,6 +1337,7 @@ class AttendanceService {
           targetLatitude: targetLocation ? targetLocation.latitude : null,
           targetLongitude: targetLocation ? targetLocation.longitude : null,
           appliedRadiusMeter: targetLocation ? targetLocation.allowedRadiusMeter : null,
+          appliedBufferMeter: systemSettingsInMemory.geofenceBufferMeter || 0,
           distanceMeter,
           deviceFingerprint,
           isPwaStandalone: parsedPwa,

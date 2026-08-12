@@ -1,5 +1,6 @@
 const fs = require('fs');
 const path = require('path');
+const systemSettingsInMemory = require('../config/system-settings');
 const { pool } = require('../config/db');
 const otRepository = require('../repositories/ot-repository');
 const attendanceRepository = require('../repositories/attendance-repository');
@@ -138,12 +139,18 @@ class AttendanceOvertimeService {
       let targetLocation = null;
       let locVal = { distanceMeter: null, trustScore: 50.0, riskLevel: 'NO_GPS' };
       let riskLevel = 'LOW';
+      
+      let isBufferMatch = false;
+      let bestBufferVal = null;
+      let bestBufferLocation = null;
 
       if (isNoGpsMode) {
         targetLocation = allowedLocations[0] || (assignment.location ? assignment.location : null);
         locVal = { distanceMeter: null, trustScore: 50.0, riskLevel: 'NO_GPS' };
         riskLevel = 'NO_GPS';
       } else {
+        const geofenceBufferMeter = systemSettingsInMemory.geofenceBufferMeter || 0;
+
         for (const loc of allowedLocations) {
           const val = locationValidationService.validateLocation({
             employeeLatitude: parsedLat,
@@ -151,6 +158,7 @@ class AttendanceOvertimeService {
             targetLatitude: parseFloat(loc.latitude),
             targetLongitude: parseFloat(loc.longitude),
             allowedRadiusMeter: loc.allowedRadiusMeter || loc.allowed_radius_meter,
+            geofenceBufferMeter,
             gpsAccuracy: parsedAccuracy,
             isPwaStandalone: parsedPwa,
             deviceFingerprintMatched: true,
@@ -161,6 +169,11 @@ class AttendanceOvertimeService {
             targetLocation = loc;
             foundMatch = true;
             break;
+          } else if (val.isInsideBuffer) {
+            if (!bestBufferVal || val.distanceMeter < bestBufferVal.distanceMeter) {
+              bestBufferVal = val;
+              bestBufferLocation = loc;
+            }
           }
         }
 
@@ -174,6 +187,7 @@ class AttendanceOvertimeService {
               targetLatitude: parseFloat(companyLoc.latitude),
               targetLongitude: parseFloat(companyLoc.longitude),
               allowedRadiusMeter: companyLoc.allowedRadiusMeter || companyLoc.allowed_radius_meter,
+              geofenceBufferMeter,
               gpsAccuracy: parsedAccuracy,
               isPwaStandalone: parsedPwa,
               deviceFingerprintMatched: true,
@@ -184,12 +198,24 @@ class AttendanceOvertimeService {
               targetLocation = companyLoc;
               foundMatch = true;
               break;
+            } else if (compLocVal.isInsideBuffer) {
+              if (!bestBufferVal || compLocVal.distanceMeter < bestBufferVal.distanceMeter) {
+                bestBufferVal = compLocVal;
+                bestBufferLocation = companyLoc;
+              }
             }
           }
         }
 
         if (!foundMatch) {
-          throw new BadRequestError('Bạn đang ở ngoài bán kính chấm công cho phép của ca tăng ca', ERROR_CODE.OUTSIDE_ALLOWED_RADIUS);
+          if (bestBufferVal) {
+             locVal = bestBufferVal;
+             targetLocation = bestBufferLocation;
+             foundMatch = true;
+             isBufferMatch = true;
+          } else {
+            throw new BadRequestError('Bạn đang ở ngoài bán kính chấm công cho phép của ca tăng ca', ERROR_CODE.OUTSIDE_ALLOWED_RADIUS);
+          }
         }
         riskLevel = locVal ? locVal.riskLevel : 'LOW';
       }
@@ -273,7 +299,7 @@ class AttendanceOvertimeService {
         }
       }
 
-      const needsAdminReview = isExplicitFailed || (faceVerifyResult && !faceVerifyResult.success) || riskLevel === 'NO_GPS' || riskLevel === 'HIGH';
+      const needsAdminReview = isExplicitFailed || (faceVerifyResult && !faceVerifyResult.success) || riskLevel === 'NO_GPS' || riskLevel === 'HIGH' || riskLevel === 'GEOFENCE_BUFFER';
 
       // Liveness Detection
       let livenessResult;
@@ -474,7 +500,7 @@ class AttendanceOvertimeService {
         }
       }
 
-      const needsAdminReview = isExplicitFailed || (faceVerifyResult && !faceVerifyResult.success) || riskLevel === 'NO_GPS' || riskLevel === 'HIGH';
+      const needsAdminReview = isExplicitFailed || (faceVerifyResult && !faceVerifyResult.success) || riskLevel === 'NO_GPS' || riskLevel === 'HIGH' || riskLevel === 'GEOFENCE_BUFFER';
 
       // Liveness Detection
       let livenessResult;

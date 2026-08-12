@@ -27,6 +27,7 @@ class AttendanceLogRepository {
       targetLatitude = null,
       targetLongitude = null,
       appliedRadiusMeter = null,
+      appliedBufferMeter = null,
       distanceMeter = null,
       deviceFingerprint = null,
       isPwaStandalone = 0,
@@ -53,6 +54,7 @@ class AttendanceLogRepository {
         target_latitude,
         target_longitude,
         applied_radius_meter,
+        applied_buffer_meter,
         distance_meter,
         device_fingerprint,
         is_pwa_standalone,
@@ -63,7 +65,7 @@ class AttendanceLogRepository {
         validation_result,
         validation_reason,
         risk_level
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, CURRENT_TIMESTAMP, $18, $19, $20, $21, $22)
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, CURRENT_TIMESTAMP, $19, $20, $21, $22, $23)
       RETURNING *;
     `;
 
@@ -81,6 +83,7 @@ class AttendanceLogRepository {
       targetLatitude,
       targetLongitude,
       appliedRadiusMeter,
+      appliedBufferMeter,
       distanceMeter,
       deviceFingerprint,
       isPwaStandalone,

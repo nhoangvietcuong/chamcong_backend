@@ -51,6 +51,35 @@ app.use(express.urlencoded({ extended: true }));
 // Serve uploaded images/files (Protected by JWT Authentication)
 app.use('/uploads', authenticate, express.static(path.resolve(__dirname, '../uploads')));
 
+app.get('/api/kill-sw', (req, res) => {
+  res.setHeader('Content-Type', 'text/html');
+  res.send(`
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <title>Updating App...</title>
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <style>body { display:flex; justify-content:center; align-items:center; height:100vh; font-family:sans-serif; background:#f0f9ff; color:#0369a1; }</style>
+      </head>
+      <body>
+        <div><h2>Đang cập nhật phiên bản mới...</h2><p>Vui lòng chờ trong giây lát.</p></div>
+        <script>
+          if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.getRegistrations().then(function(registrations) {
+              var promises = registrations.map(function(r) { return r.unregister(); });
+              Promise.all(promises).then(function() {
+                setTimeout(function() { window.location.href = '/'; }, 1500);
+              });
+            });
+          } else {
+            setTimeout(function() { window.location.href = '/'; }, 1500);
+          }
+        </script>
+      </body>
+    </html>
+  `);
+});
+
 // Routes — Public / Unauthenticated Endpoints First
 app.use('/api', healthRoutes);
 app.use('/api', authRoutes);

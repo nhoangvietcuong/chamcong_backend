@@ -17,6 +17,7 @@ class LocationValidationService {
       targetLatitude,
       targetLongitude,
       allowedRadiusMeter,
+      geofenceBufferMeter = 0,
       gpsAccuracy,
       isPwaStandalone,
       deviceFingerprintMatched,
@@ -30,10 +31,13 @@ class LocationValidationService {
       targetLongitude
     );
 
-    const isInsideRadius = distanceMeter <= allowedRadiusMeter;
+    const radius = Number(allowedRadiusMeter);
+    const buffer = Number(geofenceBufferMeter);
+    const isInsideRadius = distanceMeter <= radius;
+    const isInsideBuffer = distanceMeter <= (radius + buffer);
 
     // 2. Assess audits
-    const { trustScore, riskLevel } = calculateLocationRisk({
+    let { trustScore, riskLevel } = calculateLocationRisk({
       distanceMeter,
       allowedRadiusMeter,
       gpsAccuracy,
@@ -41,9 +45,14 @@ class LocationValidationService {
       deviceFingerprintMatched,
     });
 
+    if (!isInsideRadius && isInsideBuffer) {
+      riskLevel = 'GEOFENCE_BUFFER';
+    }
+
     return {
       distanceMeter,
       isInsideRadius,
+      isInsideBuffer,
       trustScore,
       riskLevel,
     };

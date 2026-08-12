@@ -237,17 +237,17 @@ class DashboardController {
       params.push(limit, offset);
       const dataRes = await pool.query(`
         SELECT 
-          sl.log_id as logId, 
+          sl.log_id as "logId", 
           sl.action, 
           sl.description, 
-          sl.action_time as actionTime, 
+          sl.action_time as "actionTime", 
           sl.status,
-          sl.ip_address as ipAddress,
-          sl.device_fingerprint as deviceFingerprint,
-          e.employee_code as employeeCode, 
-          e.full_name as fullName,
+          sl.ip_address as "ipAddress",
+          sl.device_fingerprint as "deviceFingerprint",
+          e.employee_code as "employeeCode", 
+          e.full_name as "fullName",
           a.username,
-          r.role_name as role
+          r.role_name as "role"
         FROM public.system_logs sl
         LEFT JOIN public.employees e ON sl.employee_id = e.employee_id
         LEFT JOIN public.accounts a ON sl.account_id = a.account_id
@@ -294,7 +294,28 @@ class DashboardController {
 
   async updateSystemSettings(req, res, next) {
     try {
+      if (req.body.geofenceBufferMeter !== undefined) {
+        const buffer = parseInt(req.body.geofenceBufferMeter, 10);
+        if (isNaN(buffer) || buffer < 0 || buffer > 100) {
+          return res.status(400).json({
+            success: false,
+            message: 'Bán kính vùng đệm (buffer) phải nằm trong khoảng từ 0 đến 100 mét.'
+          });
+        }
+      }
+
       Object.assign(systemSettingsInMemory, req.body);
+
+      if (req.body.defaultAllowedRadius !== undefined) {
+        const newRadius = parseInt(req.body.defaultAllowedRadius, 10);
+        if (!isNaN(newRadius) && newRadius > 0) {
+          systemSettingsInMemory.defaultAllowedRadius = newRadius;
+          await pool.query(
+            'UPDATE public.work_locations SET allowed_radius_meter = $1, updated_at = CURRENT_TIMESTAMP',
+            [newRadius]
+          );
+        }
+      }
 
       if (req.body.companyStartTime && req.body.companyEndTime) {
         const timeRegex = /^([01]\d|2[0-3]):([0-5]\d)(:([0-5]\d))?$/;

@@ -2,6 +2,7 @@ const faceAiConfig = require('../modules/face-recognition/config/face-ai-config'
 
 let systemSettingsInMemory = {
   defaultAllowedRadius: 100,
+  geofenceBufferMeter: 20,
   gpsMaxAccuracy: 30,
   maxPhotoSizeMb: 5,
   acceptedPhotoFormats: "image/jpeg, image/png",
