@@ -39,7 +39,7 @@ const assignmentQueryValidator = [
     .withMessage('Trạng thái phân công không hợp lệ'),
   query('sortBy')
     .optional()
-    .isIn(['assignmentId', 'workDate', 'status', 'createdAt'])
+    .isIn(['assignmentId', 'assignment_id', 'workDate', 'status', 'createdAt'])
     .withMessage('Trường sắp xếp không hợp lệ'),
   query('sortOrder')
     .optional()

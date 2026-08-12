@@ -125,6 +125,7 @@ class AssignmentRepository {
 
     const allowedSortBy = {
       assignmentId: 'ewa.assignment_id',
+      assignment_id: 'ewa.assignment_id',
       workDate: 'ewa.work_date',
       status: 'ewa.status',
       createdAt: 'ewa.created_at'

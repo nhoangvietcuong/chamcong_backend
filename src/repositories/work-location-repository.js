@@ -29,6 +29,7 @@ class WorkLocationRepository {
     // Sort whitelist
     const allowedSortBy = {
       locationId: 'location_id',
+      location_id: 'location_id',
       locationName: 'location_name',
       address: 'address',
       latitude: 'latitude',

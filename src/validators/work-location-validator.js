@@ -15,7 +15,7 @@ const workLocationQueryValidator = [
     .withMessage('Trạng thái chỉ nhận giá trị 0 hoặc 1'),
   query('sortBy')
     .optional()
-    .isIn(['locationId', 'locationName', 'address', 'latitude', 'longitude', 'allowedRadiusMeter', 'status', 'createdAt'])
+    .isIn(['locationId', 'location_id', 'locationName', 'address', 'latitude', 'longitude', 'allowedRadiusMeter', 'status', 'createdAt'])
     .withMessage('Trường sắp xếp không hợp lệ'),
   query('sortOrder')
     .optional()
