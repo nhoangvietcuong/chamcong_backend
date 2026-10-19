@@ -7,6 +7,7 @@ CREATE TABLE IF NOT EXISTS public.leave_requests (
     start_date       DATE NOT NULL,
     end_date         DATE NOT NULL,
     reason           VARCHAR(500) NOT NULL,
+    evidence_url     TEXT,
     status           VARCHAR(20) NOT NULL DEFAULT 'PENDING', -- PENDING, APPROVED, REJECTED, CANCELLED
     
     approved_by      BIGINT REFERENCES public.employees(employee_id) ON DELETE SET NULL,
